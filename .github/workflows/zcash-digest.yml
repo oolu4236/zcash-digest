@@ -120,17 +120,44 @@ jobs:
           print("Summary generated:")
           print(summary)
 
-          # ── Step 2: Post to Miro as daily doc (card) ──
-          print("\nPosting to Miro board...")
+          # ── Step 2: Find next position in frame, then post as daily doc (card) ──
+          print("\nCalculating next position in frame...")
+
+          FRAME_ID = "3458764673866083344"
+          CARD_WIDTH = 600
+          CARD_GAP = 50
+
+          # Fetch all existing cards inside the frame
+          items_req = urllib.request.Request(
+              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/items?parent_item_id={FRAME_ID}&limit=50&type=card",
+              headers={"Authorization": f"Bearer {MIRO_TOKEN}", "Accept": "application/json"},
+              method="GET"
+          )
+          with urllib.request.urlopen(items_req) as res:
+              items = json.loads(res.read()).get("data", [])
+
+          if items:
+              # Find rightmost card (max x + half its width)
+              max_right = max(
+                  item["position"]["x"] + item["geometry"]["width"] / 2
+                  for item in items
+                  if "position" in item and "geometry" in item
+              )
+              next_x = int(max_right + CARD_GAP + CARD_WIDTH / 2)
+          else:
+              next_x = 400
+
+          next_y = 400
+          print(f"Placing new card at x={next_x}, y={next_y}")
 
           miro_payload = json.dumps({
               "data": {
                   "title": f"Zcash Daily Digest — {today}",
                   "description": summary
               },
-              "geometry": { "width": 600 },
-              "position": { "x": 400, "y": 400, "origin": "center" },
-              "parent": { "id": "3458764673866083344" }
+              "geometry": { "width": CARD_WIDTH },
+              "position": { "x": next_x, "y": next_y, "origin": "center" },
+              "parent": { "id": FRAME_ID }
           }).encode()
 
           miro_req = urllib.request.Request(
