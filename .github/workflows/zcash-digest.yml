@@ -123,8 +123,7 @@ jobs:
               },
               "style": {
                   "fillColor": "yellow",
-                  "textAlign": "left",
-                  "fontSize": "14"
+                  "textAlign": "left"
               },
               "geometry": { "width": 480 }
           }).encode()
