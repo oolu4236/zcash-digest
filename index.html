@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zcash Forum TL;DR</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #F4B728;
+    --gold-dim: #7A5A0E;
+    --bg: #0F0F0F;
+    --surface: #181818;
+    --surface2: #222222;
+    --border: #2E2E2E;
+    --text: #E8E8E0;
+    --muted: #888880;
+    --green: #4ADE80;
+    --red: #F87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 24px 60px;
+  }
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .wordmark {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .title {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -.02em;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 300;
+  }
+  .fetch-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--gold);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .fetch-btn:hover { opacity: .9; }
+  .fetch-btn:active { transform: scale(.97); }
+  .fetch-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    min-height: 42px;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background .3s;
+  }
+  .status-dot.active { background: var(--gold); animation: pulse 1.2s ease-in-out infinite; }
+  .status-dot.done   { background: var(--green); animation: none; }
+  .status-dot.error  { background: var(--red); animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .threads-section { margin-bottom: 24px; }
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 10px;
+  }
+  .thread-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .thread-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 13px;
+    transition: border-color .12s;
+  }
+  .thread-row:hover { border-color: #444; }
+  .thread-title {
+    font-weight: 400;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .thread-replies {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .thread-age {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--border);
+    white-space: nowrap;
+  }
+
+  .summary-section { margin-bottom: 24px; }
+  .summary-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    font-weight: 300;
+    min-height: 80px;
+    white-space: pre-wrap;
+  }
+  .summary-box.empty {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 13px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  .action-btn:hover { border-color: #555; background: #2a2a2a; }
+  .action-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .action-btn.primary {
+    background: #1a2a1a;
+    border-color: #2d5c2d;
+    color: var(--green);
+  }
+  .action-btn.primary:hover { background: #1f321f; border-color: #3a7a3a; }
+
+  .timestamp {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 4px;
+    height: 14px;
+  }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="wordmark">Zcash Community</div>
+    <div class="title">Forum TL;DR</div>
+    <div class="subtitle">Last 24 hours · forum.zcashcommunity.com</div>
+  </div>
+  <button class="fetch-btn" id="main-btn" onclick="runPipeline()">
+    ⚡ Fetch &amp; Summarize
+  </button>
+</div>
+
+<div class="status-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">Ready — hit the button to fetch today's forum activity.</span>
+</div>
+
+<div class="threads-section" id="threads-section" style="display:none">
+  <div class="section-label">Active threads (last 24h)</div>
+  <div class="thread-list" id="thread-list"></div>
+</div>
+
+<div class="summary-section">
+  <div class="section-label">TL;DR digest</div>
+  <div class="summary-box empty" id="summary-box">Summary will appear here after fetching.</div>
+</div>
+
+<div class="actions">
+  <button class="action-btn primary" id="miro-btn" disabled onclick="postToMiro()">
+    📌 Post to Miro
+  </button>
+  <button class="action-btn" id="copy-btn" disabled onclick="copyText()">
+    📋 Copy
+  </button>
+  <button class="action-btn" id="retry-btn" style="display:none" onclick="runPipeline()">
+    ↻ Retry
+  </button>
+</div>
+
+<div class="timestamp" id="timestamp"></div>
+
+<script>
+let summaryText = "";
+let fetchedThreads = [];
+
+function setStatus(state, msg) {
+  const dot = document.getElementById("status-dot");
+  dot.className = "status-dot " + (state === "loading" ? "active" : state === "done" ? "done" : state === "error" ? "error" : "");
+  document.getElementById("status-text").textContent = msg;
+}
+
+async function runPipeline() {
+  const btn = document.getElementById("main-btn");
+  btn.disabled = true;
+  document.getElementById("miro-btn").disabled = true;
+  document.getElementById("copy-btn").disabled = true;
+  document.getElementById("retry-btn").style.display = "none";
+  document.getElementById("threads-section").style.display = "none";
+  document.getElementById("thread-list").innerHTML = "";
+  summaryText = "";
+  const box = document.getElementById("summary-box");
+  box.className = "summary-box empty";
+  box.textContent = "Fetching…";
+
+  try {
+    // ── Step 1: Fetch Zcash forum via CORS proxy ──
+    setStatus("loading", "Step 1/3 — Fetching Zcash forum (latest topics)…");
+    const proxy = "https://corsproxy.io/?url=";
+    const forumUrl = "https://forum.zcashcommunity.com/latest.json?order=activity&ascending=false";
+    let topics;
+    try {
+      const res = await fetch(proxy + encodeURIComponent(forumUrl));
+      if (!res.ok) throw new Error("Forum fetch failed: " + res.status);
+      const data = await res.json();
+      topics = data.topic_list?.topics || [];
+    } catch(e) {
+      // Fallback: try direct (may work in some environments)
+      const res2 = await fetch(forumUrl);
+      const data2 = await res2.json();
+      topics = data2.topic_list?.topics || [];
+    }
+
+    // Filter to last 24 hours
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const recent = topics.filter(t => {
+      const last = new Date(t.last_posted_at || t.bumped_at || t.created_at).getTime();
+      return last >= cutoff && !t.pinned && t.title !== "About the Site Feedback category";
+    }).slice(0, 20);
+
+    fetchedThreads = recent;
+
+    if (recent.length === 0) {
+      setStatus("done", "No activity in the last 24 hours — showing most recent 10 threads.");
+      fetchedThreads = topics.filter(t => !t.pinned).slice(0, 10);
+    }
+
+    // Render thread list
+    renderThreads(fetchedThreads);
+
+    // ── Step 2: Summarize via Claude API ──
+    setStatus("loading", "Step 2/3 — Summarizing with Claude…");
+    box.className = "summary-box";
+    box.textContent = "";
+
+    const threadSummary = fetchedThreads.map((t, i) =>
+      `${i+1}. "${t.title}" — ${t.reply_count || 0} replies, ${t.views || 0} views, last active: ${new Date(t.last_posted_at || t.bumped_at).toLocaleTimeString()}`
+    ).join("\n");
+
+    const today = new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+
+    const prompt = `You are summarizing the Zcash community forum for a team digest.
+
+Date: ${today}
+Active threads in the last 24 hours (${fetchedThreads.length} total):
+
+${threadSummary}
+
+Write a concise TL;DR digest for a team Miro board. Format:
+
+📅 [Date]
+🔥 TOP THREADS
+• [2-3 sentence summary of what's being discussed, grouping related threads]
+
+💬 COMMUNITY PULSE
+• [1-2 sentences on overall mood/focus — technical? governance? ecosystem?]
+
+🔍 WORTH WATCHING
+• [1-2 specific threads worth a closer look, with brief reason why]
+
+Keep it tight — the whole digest should fit in one sticky note. No filler.`;
+
+    const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    if (!apiRes.ok) {
+      const err = await apiRes.json();
+      throw new Error("Claude API error: " + (err.error?.message || apiRes.status));
+    }
+
+    const apiData = await apiRes.json();
+    summaryText = apiData.content?.find(c => c.type === "text")?.text || "";
+
+    if (!summaryText) throw new Error("No summary returned from Claude.");
+
+    box.className = "summary-box";
+    box.textContent = summaryText;
+
+    // ── Step 3: Ready ──
+    setStatus("done", `Done — ${fetchedThreads.length} threads summarized. Post to Miro when ready.`);
+    document.getElementById("miro-btn").disabled = false;
+    document.getElementById("copy-btn").disabled = false;
+    document.getElementById("timestamp").textContent = "Generated " + new Date().toLocaleString();
+
+  } catch (err) {
+    setStatus("error", "Error: " + err.message);
+    box.className = "summary-box empty";
+    box.textContent = "Something went wrong. See status bar above.";
+    document.getElementById("retry-btn").style.display = "inline-flex";
+  }
+
+  btn.disabled = false;
+}
+
+function renderThreads(threads) {
+  const list = document.getElementById("thread-list");
+  list.innerHTML = "";
+  threads.forEach(t => {
+    const age = timeSince(new Date(t.last_posted_at || t.bumped_at));
+    const row = document.createElement("div");
+    row.className = "thread-row";
+    row.innerHTML = `
+      <span class="thread-title" title="${t.title}">${t.title}</span>
+      <span class="thread-replies">${t.reply_count || 0} replies</span>
+      <span class="thread-age">${age}</span>
+    `;
+    list.appendChild(row);
+  });
+  document.getElementById("threads-section").style.display = "block";
+}
+
+function timeSince(date) {
+  const s = Math.floor((Date.now() - date) / 1000);
+  if (s < 3600) return Math.floor(s/60) + "m ago";
+  if (s < 86400) return Math.floor(s/3600) + "h ago";
+  return Math.floor(s/86400) + "d ago";
+}
+
+function copyText() {
+  if (!summaryText) return;
+  navigator.clipboard.writeText(summaryText).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.textContent = "✓ Copied";
+    setTimeout(() => btn.textContent = "📋 Copy", 2000);
+  });
+}
+
+function postToMiro() {
+  if (!summaryText) return;
+  // Send the summary back to Claude chat to post via Miro MCP
+  const msg = `POST_TO_MIRO\n\n${summaryText}`;
+  if (typeof sendPrompt === "function") {
+    sendPrompt(msg);
+  } else {
+    copyText();
+    alert("sendPrompt not available — summary copied to clipboard. Paste it in chat and ask Claude to post it to Miro.");
+  }
+}
+</script>
+</body>
+</html>
