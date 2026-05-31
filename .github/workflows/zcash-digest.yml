@@ -126,29 +126,21 @@ jobs:
           FRAME_ID = "3458764673866083344"
           CARD_WIDTH = 600
           CARD_GAP = 50
+          START_X = 400
+          START_Y = 400
 
-          # Fetch all existing cards inside the frame
+          # Count existing cards in the frame to determine next slot
           items_req = urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/items?parent_item_id={FRAME_ID}&limit=50&type=card",
               headers={"Authorization": f"Bearer {MIRO_TOKEN}", "Accept": "application/json"},
               method="GET"
           )
           with urllib.request.urlopen(items_req) as res:
-              items = json.loads(res.read()).get("data", [])
+              existing_count = len(json.loads(res.read()).get("data", []))
 
-          if items:
-              # Find rightmost card (max x + half its width)
-              max_right = max(
-                  item["position"]["x"] + item["geometry"]["width"] / 2
-                  for item in items
-                  if "position" in item and "geometry" in item
-              )
-              next_x = int(max_right + CARD_GAP + CARD_WIDTH / 2)
-          else:
-              next_x = 400
-
-          next_y = 400
-          print(f"Placing new card at x={next_x}, y={next_y}")
+          next_x = START_X + existing_count * (CARD_WIDTH + CARD_GAP)
+          next_y = START_Y
+          print(f"Placing card #{existing_count + 1} at x={next_x}, y={next_y}")
 
           miro_payload = json.dumps({
               "data": {
