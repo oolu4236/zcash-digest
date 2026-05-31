@@ -57,7 +57,7 @@ jobs:
           for attempt in range(6):
               print(f"  Claude turn {attempt + 1}...")
               payload = json.dumps({
-                  "model": "claude-sonnet-4-20250514",
+                  "model": "claude-sonnet-4-6",
                   "max_tokens": 2000,
                   "tools": tools,
                   "messages": messages
@@ -70,6 +70,7 @@ jobs:
                       "Content-Type": "application/json",
                       "x-api-key": ANTHROPIC_API_KEY,
                       "anthropic-version": "2023-06-01",
+                      "anthropic-beta": "web-search-2025-03-05",
                   },
                   method="POST"
               )
