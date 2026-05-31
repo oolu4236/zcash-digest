@@ -120,17 +120,13 @@ jobs:
           print("Summary generated:")
           print(summary)
 
-          # ── Step 2: Post to Miro as sticky note ──
+          # ── Step 2: Post to Miro as daily doc (card) ──
           print("\nPosting to Miro board...")
 
           miro_payload = json.dumps({
               "data": {
-                  "content": summary,
-                  "shape": "rectangle"
-              },
-              "style": {
-                  "fillColor": "yellow",
-                  "textAlign": "left"
+                  "title": f"Zcash Daily Digest — {today}",
+                  "description": summary
               },
               "geometry": { "width": 600 },
               "position": { "x": 400, "y": 400, "origin": "center" },
@@ -138,7 +134,7 @@ jobs:
           }).encode()
 
           miro_req = urllib.request.Request(
-              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/sticky_notes",
+              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
               data=miro_payload,
               headers={
                   "Authorization": f"Bearer {MIRO_TOKEN}",
@@ -150,7 +146,7 @@ jobs:
 
           with urllib.request.urlopen(miro_req) as res:
               result = json.loads(res.read())
-              print(f"✓ Sticky note created: {result.get('id')}")
+              print(f"✓ Daily doc created: {result.get('id')}")
 
           print("Done.")
           PYEOF
