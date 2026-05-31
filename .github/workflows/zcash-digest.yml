@@ -35,20 +35,27 @@ jobs:
 
           Search the Zcash community forum (forum.zcashcommunity.com) and find what has been actively discussed in the last 24 hours. Look at latest threads, active discussions, grant updates, and technical topics.
 
-          Write a concise TL;DR digest for a team Miro board sticky note. Format exactly like this:
+          Write a concise TL;DR digest formatted as HTML for a Miro sticky note. Use this exact structure:
 
-          📅 {today}
+          <p><strong>📅 {today}</strong></p>
 
-          🔥 TOP THREADS
-          • [2-3 sentence summary of what's being discussed, grouping related threads]
+          <p><strong>🔥 TOP THREADS</strong></p>
+          <ul>
+            <li>[thread title]: [1-2 sentence summary]</li>
+            <li>[thread title]: [1-2 sentence summary]</li>
+          </ul>
 
-          💬 COMMUNITY PULSE
-          • [1-2 sentences on overall mood/focus — technical? governance? ecosystem?]
+          <p><strong>💬 COMMUNITY PULSE</strong></p>
+          <ul>
+            <li>[1-2 sentences on overall mood/focus — technical? governance? ecosystem?]</li>
+          </ul>
 
-          🔍 WORTH WATCHING
-          • [1-2 specific threads worth a closer look, with brief reason why]
+          <p><strong>🔍 WORTH WATCHING</strong></p>
+          <ul>
+            <li>[thread title] — [brief reason why it matters]</li>
+          </ul>
 
-          Keep it tight and factual. No filler. The whole digest must fit on one sticky note."""
+          Return only the HTML. No markdown, no code fences, no extra commentary."""
 
           messages = [{"role": "user", "content": prompt}]
           tools = [{"type": "web_search_20250305", "name": "web_search"}]
@@ -125,7 +132,9 @@ jobs:
                   "fillColor": "yellow",
                   "textAlign": "left"
               },
-              "geometry": { "width": 480 }
+              "geometry": { "width": 600 },
+              "position": { "x": -9000, "y": -6000, "origin": "center", "relativeTo": "canvas_center" },
+              "parent": { "id": "3458764673866083344" }
           }).encode()
 
           miro_req = urllib.request.Request(
