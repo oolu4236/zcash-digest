@@ -1,0 +1,147 @@
+name: Zcash Daily Digest → Miro
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # Runs every day at 9:00 AM UTC
+  workflow_dispatch:       # Also allows manual one-click trigger from GitHub
+
+jobs:
+  post-digest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch Zcash forum & summarize & post to Miro
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MIRO_TOKEN: ${{ secrets.MIRO_TOKEN }}
+          MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
+        run: |
+          python3 - << 'PYEOF'
+          import urllib.request
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
+          MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
+          MIRO_BOARD_ID     = os.environ["MIRO_BOARD_ID"]
+
+          today = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
+
+          # ── Step 1: Search Zcash forum via web search ──
+          print("Fetching Zcash forum via Claude web search...")
+
+          prompt = f"""Today is {today}.
+
+          Search the Zcash community forum (forum.zcashcommunity.com) and find what has been actively discussed in the last 24 hours. Look at latest threads, active discussions, grant updates, and technical topics.
+
+          Write a concise TL;DR digest for a team Miro board sticky note. Format exactly like this:
+
+          📅 {today}
+
+          🔥 TOP THREADS
+          • [2-3 sentence summary of what's being discussed, grouping related threads]
+
+          💬 COMMUNITY PULSE
+          • [1-2 sentences on overall mood/focus — technical? governance? ecosystem?]
+
+          🔍 WORTH WATCHING
+          • [1-2 specific threads worth a closer look, with brief reason why]
+
+          Keep it tight and factual. No filler. The whole digest must fit on one sticky note."""
+
+          messages = [{"role": "user", "content": prompt}]
+          tools = [{"type": "web_search_20250305", "name": "web_search"}]
+          summary = ""
+
+          for attempt in range(6):
+              print(f"  Claude turn {attempt + 1}...")
+              payload = json.dumps({
+                  "model": "claude-sonnet-4-20250514",
+                  "max_tokens": 2000,
+                  "tools": tools,
+                  "messages": messages
+              }).encode()
+
+              req = urllib.request.Request(
+                  "https://api.anthropic.com/v1/messages",
+                  data=payload,
+                  headers={
+                      "Content-Type": "application/json",
+                      "x-api-key": ANTHROPIC_API_KEY,
+                      "anthropic-version": "2023-06-01",
+                  },
+                  method="POST"
+              )
+
+              with urllib.request.urlopen(req) as res:
+                  data = json.loads(res.read())
+
+              messages.append({"role": "assistant", "content": data["content"]})
+
+              if data["stop_reason"] == "end_turn":
+                  summary = " ".join(
+                      block["text"] for block in data["content"]
+                      if block["type"] == "text"
+                  ).strip()
+                  break
+
+              if data["stop_reason"] == "tool_use":
+                  tool_results = [
+                      {
+                          "type": "tool_result",
+                          "tool_use_id": block["id"],
+                          "content": block.get("output", "No results.")
+                      }
+                      for block in data["content"]
+                      if block["type"] == "tool_use"
+                  ]
+                  messages.append({"role": "user", "content": tool_results})
+                  continue
+
+              # Fallback: grab any text
+              summary = " ".join(
+                  block["text"] for block in data["content"]
+                  if block["type"] == "text"
+              ).strip()
+              break
+
+          if not summary:
+              raise Exception("No summary returned from Claude.")
+
+          print("Summary generated:")
+          print(summary)
+
+          # ── Step 2: Post to Miro as sticky note ──
+          print("\nPosting to Miro board...")
+
+          miro_payload = json.dumps({
+              "data": {
+                  "content": summary,
+                  "shape": "rectangle"
+              },
+              "style": {
+                  "fillColor": "#f5dd29",
+                  "textAlign": "left",
+                  "fontSize": "14"
+              },
+              "geometry": { "width": 480 }
+          }).encode()
+
+          miro_req = urllib.request.Request(
+              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/sticky_notes",
+              data=miro_payload,
+              headers={
+                  "Authorization": f"Bearer {MIRO_TOKEN}",
+                  "Content-Type": "application/json",
+                  "Accept": "application/json",
+              },
+              method="POST"
+          )
+
+          with urllib.request.urlopen(miro_req) as res:
+              result = json.loads(res.read())
+              print(f"✓ Sticky note created: {result.get('id')}")
+
+          print("Done.")
+          PYEOF
