@@ -133,7 +133,7 @@ jobs:
                   "textAlign": "left"
               },
               "geometry": { "width": 600 },
-              "position": { "x": -9000, "y": -6000, "origin": "center", "relativeTo": "canvas_center" },
+              "position": { "x": 400, "y": 400, "origin": "center" },
               "parent": { "id": "3458764673866083344" }
           }).encode()
 
