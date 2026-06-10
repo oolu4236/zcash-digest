@@ -2,8 +2,8 @@ name: Zcash Daily Digest → Miro
 
 on:
   schedule:
-    - cron: '0 13 * * *'  # Runs every day at 1:00 PM UTC (2:00 PM WAT)
-  workflow_dispatch:       # Also allows manual one-click trigger from GitHub
+    - cron: '0 13 * * *'
+  workflow_dispatch:
 
 jobs:
   post-digest:
@@ -18,6 +18,7 @@ jobs:
         run: |
           python3 - << 'PYEOF'
           import urllib.request
+          import urllib.error
           import json
           import os
           from datetime import datetime, timezone, date
@@ -25,6 +26,9 @@ jobs:
           ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
           MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
           MIRO_BOARD_ID     = os.environ["MIRO_BOARD_ID"]
+
+          print(f"Board ID length: {len(MIRO_BOARD_ID)} chars")
+          print(f"Token length: {len(MIRO_TOKEN)} chars")
 
           today = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
 
@@ -116,26 +120,26 @@ jobs:
           if not summary:
               raise Exception("No summary returned from Claude.")
 
-          print("Summary generated:")
-          print(summary)
+          print("Summary generated (truncated):", summary[:100])
 
-          # ── Step 2: Calculate position from date (no GET call needed) ──
-          print("\nCalculating position from date...")
-
-          FRAME_ID   = "3458764673866083344"
+          # ── Step 2: Calculate position from date ──
+          FRAME_ID    = "3458764673866083344"
           CARD_WIDTH  = 600
           CARD_HEIGHT = 250
           CARD_GAP    = 50
           START_X     = 400
           START_Y     = 400
-          EPOCH       = date(2026, 6, 1)   # Day 0
+          EPOCH       = date(2026, 6, 1)
 
           days_offset = (date.today() - EPOCH).days
           next_x = START_X
           next_y = START_Y + days_offset * (CARD_HEIGHT + CARD_GAP)
-          print(f"Date offset day {days_offset} → x={next_x}, y={next_y}")
+          print(f"Position: x={next_x}, y={next_y}")
 
-          # ── Step 3: Post card to Miro ──
+          # ── Step 3: Post card to Miro with full error logging ──
+          miro_url = f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards"
+          print(f"Posting to: {miro_url}")
+
           miro_payload = json.dumps({
               "data": {
                   "title": f"Zcash Daily Digest — {today}",
@@ -147,7 +151,7 @@ jobs:
           }).encode()
 
           miro_req = urllib.request.Request(
-              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
+              miro_url,
               data=miro_payload,
               headers={
                   "Authorization": f"Bearer {MIRO_TOKEN}",
@@ -157,9 +161,15 @@ jobs:
               method="POST"
           )
 
-          with urllib.request.urlopen(miro_req) as res:
-              result = json.loads(res.read())
-              print(f"✓ Daily doc created: {result.get('id')}")
+          try:
+              with urllib.request.urlopen(miro_req) as res:
+                  result = json.loads(res.read())
+                  print(f"✓ Daily doc created: {result.get('id')}")
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f"Miro error {e.code}: {e.reason}")
+              print(f"Response body: {body}")
+              raise
 
           print("Done.")
           PYEOF
