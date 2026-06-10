@@ -129,7 +129,7 @@ jobs:
           CARD_GAP    = 50
           START_X     = 400
           START_Y     = 400
-          EPOCH       = date(2026, 6, 1)
+          EPOCH       = date(2026, 6, 10)
 
           days_offset = (date.today() - EPOCH).days
           next_x = START_X
