@@ -123,7 +123,7 @@ jobs:
           print("Summary generated (truncated):", summary[:100])
 
           # ── Step 2: Calculate position from date ──
-          FRAME_ID    = "3458764673866083344"
+          FRAME_ID    = "3458764675063219436"
           CARD_WIDTH  = 600
           CARD_HEIGHT = 250
           CARD_GAP    = 50
