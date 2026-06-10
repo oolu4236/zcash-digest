@@ -20,7 +20,7 @@ jobs:
           import urllib.request
           import json
           import os
-          from datetime import datetime, timezone
+          from datetime import datetime, timezone, date
 
           ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
           MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
@@ -107,7 +107,6 @@ jobs:
                   messages.append({"role": "user", "content": tool_results})
                   continue
 
-              # Fallback: grab any text
               summary = " ".join(
                   block["text"] for block in data["content"]
                   if block["type"] == "text"
@@ -120,34 +119,23 @@ jobs:
           print("Summary generated:")
           print(summary)
 
-          # ── Step 2: Find next position in frame, then post as daily doc (card) ──
-          print("\nCalculating next position in frame...")
+          # ── Step 2: Calculate position from date (no GET call needed) ──
+          print("\nCalculating position from date...")
 
-          FRAME_ID = "3458764673866083344"
-          CARD_WIDTH = 600
-          CARD_HEIGHT = 200
-          CARD_GAP = 50
-          START_X = 400
-          START_Y = 400
+          FRAME_ID   = "3458764673866083344"
+          CARD_WIDTH  = 600
+          CARD_HEIGHT = 250
+          CARD_GAP    = 50
+          START_X     = 400
+          START_Y     = 400
+          EPOCH       = date(2026, 6, 1)   # Day 0
 
-          # Count existing cards in the frame to determine next slot
-          items_req = urllib.request.Request(
-              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/items?parent_item_id={FRAME_ID}&limit=50&type=card",
-              headers={"Authorization": f"Bearer {MIRO_TOKEN}", "Accept": "application/json"},
-              method="GET"
-          )
-          with urllib.request.urlopen(items_req) as res:
-              items = json.loads(res.read()).get("data", [])
-              existing_count = len(items)
-
-          # Use actual height of first card if available, else fallback
-          if items and "geometry" in items[0]:
-              CARD_HEIGHT = int(items[0]["geometry"].get("height", 200))
-
+          days_offset = (date.today() - EPOCH).days
           next_x = START_X
-          next_y = START_Y + existing_count * (CARD_HEIGHT + CARD_GAP)
-          print(f"Placing card #{existing_count + 1} at x={next_x}, y={next_y}")
+          next_y = START_Y + days_offset * (CARD_HEIGHT + CARD_GAP)
+          print(f"Date offset day {days_offset} → x={next_x}, y={next_y}")
 
+          # ── Step 3: Post card to Miro ──
           miro_payload = json.dumps({
               "data": {
                   "title": f"Zcash Daily Digest — {today}",
