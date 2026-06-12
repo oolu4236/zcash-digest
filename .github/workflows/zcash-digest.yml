@@ -17,50 +17,48 @@ jobs:
           MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
         run: |
           python3 - << 'PYEOF'
-          import urllib.request
-          import urllib.error
-          import json
-          import os
+          import urllib.request, urllib.error, json, os
           from datetime import datetime, timezone, date
 
           ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
           MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
           MIRO_BOARD_ID     = os.environ["MIRO_BOARD_ID"]
+          FRAME_ID          = "3458764675063219436"
+          EPOCH             = date(2026, 6, 10)
+          CARD_WIDTH        = 600
+          CARD_STEP         = 350   # vertical space per day
+          START_Y           = 400
 
           today = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
 
-          # ── Step 1: Search Zcash forum via web search ──
+          # ── Step 1: Fetch Zcash forum via Claude web search ──
           print("Fetching Zcash forum via Claude web search...")
-
           prompt = f"""Today is {today}.
 
-          Search the Zcash community forum (forum.zcashcommunity.com) and find what has been actively discussed in the last 24 hours. Look at latest threads, active discussions, grant updates, and technical topics.
+Search the Zcash community forum (forum.zcashcommunity.com) and find what has been actively discussed in the last 24 hours.
 
-          Write a concise TL;DR digest formatted as HTML for a Miro sticky note. Use this exact structure:
+Write a concise TL;DR digest formatted as HTML. Use this exact structure:
 
-          <p><strong>📅 {today}</strong></p>
+<p><strong>📅 {today}</strong></p>
+<p><strong>🔥 TOP THREADS</strong></p>
+<ul>
+  <li>[thread title]: [1-2 sentence summary]</li>
+  <li>[thread title]: [1-2 sentence summary]</li>
+</ul>
+<p><strong>💬 COMMUNITY PULSE</strong></p>
+<ul>
+  <li>[1-2 sentences on overall mood/focus]</li>
+</ul>
+<p><strong>🔍 WORTH WATCHING</strong></p>
+<ul>
+  <li>[thread title] — [brief reason why it matters]</li>
+</ul>
 
-          <p><strong>🔥 TOP THREADS</strong></p>
-          <ul>
-            <li>[thread title]: [1-2 sentence summary]</li>
-            <li>[thread title]: [1-2 sentence summary]</li>
-          </ul>
-
-          <p><strong>💬 COMMUNITY PULSE</strong></p>
-          <ul>
-            <li>[1-2 sentences on overall mood/focus — technical? governance? ecosystem?]</li>
-          </ul>
-
-          <p><strong>🔍 WORTH WATCHING</strong></p>
-          <ul>
-            <li>[thread title] — [brief reason why it matters]</li>
-          </ul>
-
-          Return only the HTML. No markdown, no code fences, no extra commentary."""
+Return only the HTML. No markdown, no code fences."""
 
           messages = [{"role": "user", "content": prompt}]
-          tools = [{"type": "web_search_20250305", "name": "web_search"}]
-          summary = ""
+          tools    = [{"type": "web_search_20250305", "name": "web_search"}]
+          summary  = ""
 
           for attempt in range(6):
               print(f"  Claude turn {attempt + 1}...")
@@ -70,7 +68,6 @@ jobs:
                   "tools": tools,
                   "messages": messages
               }).encode()
-
               req = urllib.request.Request(
                   "https://api.anthropic.com/v1/messages",
                   data=payload,
@@ -82,59 +79,33 @@ jobs:
                   },
                   method="POST"
               )
-
               with urllib.request.urlopen(req) as res:
                   data = json.loads(res.read())
-
               messages.append({"role": "assistant", "content": data["content"]})
-
               if data["stop_reason"] == "end_turn":
-                  summary = " ".join(
-                      block["text"] for block in data["content"]
-                      if block["type"] == "text"
-                  ).strip()
+                  summary = " ".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
                   break
-
               if data["stop_reason"] == "tool_use":
-                  tool_results = [
-                      {
-                          "type": "tool_result",
-                          "tool_use_id": block["id"],
-                          "content": block.get("output", "No results.")
-                      }
-                      for block in data["content"]
-                      if block["type"] == "tool_use"
-                  ]
-                  messages.append({"role": "user", "content": tool_results})
-                  continue
-
-              summary = " ".join(
-                  block["text"] for block in data["content"]
-                  if block["type"] == "text"
-              ).strip()
-              break
+                  messages.append({"role": "user", "content": [
+                      {"type": "tool_result", "tool_use_id": b["id"], "content": b.get("output", "")}
+                      for b in data["content"] if b["type"] == "tool_use"
+                  ]})
 
           if not summary:
-              raise Exception("No summary returned from Claude.")
+              raise Exception("No summary from Claude.")
+          print("Summary ready.")
 
-          print("Summary generated (truncated):", summary[:80])
+          # ── Step 2: Calculate position & resize frame to fit ──
+          days_offset    = (date.today() - EPOCH).days
+          next_y         = START_Y + days_offset * CARD_STEP
+          needed_height  = next_y + 500          # just enough + small buffer
 
-          # ── Step 2: Resize frame to ensure it's tall enough ──
-          FRAME_ID    = "3458764675063219436"
-          CARD_WIDTH  = 600
-          CARD_GAP    = 50
-          START_Y     = 400
-          EPOCH       = date(2026, 6, 10)
-          FRAME_HEIGHT = 50000
+          print(f"Day {days_offset} → y={next_y}, frame height → {needed_height}")
 
-          print("Resizing frame to ensure enough space...")
-          frame_payload = json.dumps({
-              "geometry": {"height": FRAME_HEIGHT}
-          }).encode()
-
-          frame_req = urllib.request.Request(
+          patch_payload = json.dumps({"geometry": {"height": needed_height}}).encode()
+          patch_req = urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
-              data=frame_payload,
+              data=patch_payload,
               headers={
                   "Authorization": f"Bearer {MIRO_TOKEN}",
                   "Content-Type": "application/json",
@@ -142,33 +113,19 @@ jobs:
               },
               method="PATCH"
           )
-          try:
-              with urllib.request.urlopen(frame_req) as res:
-                  frame_data = json.loads(res.read())
-                  actual_h = frame_data.get("geometry", {}).get("height", "?")
-                  print(f"Frame height set to: {actual_h}")
-          except urllib.error.HTTPError as e:
-              print(f"Frame resize warning {e.code}: {e.read().decode()}")
+          with urllib.request.urlopen(patch_req) as res:
+              print(f"Frame resized ok.")
 
-          # ── Step 3: Calculate card position from date ──
-          days_offset = (date.today() - EPOCH).days
-          next_y = START_Y + days_offset * (350)
-          print(f"Day {days_offset} → card at y={next_y}")
-
-          # ── Step 4: Post card to Miro ──
-          miro_payload = json.dumps({
-              "data": {
-                  "title": f"Zcash Daily Digest — {today}",
-                  "description": summary
-              },
-              "geometry": { "width": CARD_WIDTH },
-              "position": { "x": 400, "y": next_y, "origin": "center" },
-              "parent": { "id": FRAME_ID }
+          # ── Step 3: Post card ──
+          card_payload = json.dumps({
+              "data": {"title": f"Zcash Daily Digest — {today}", "description": summary},
+              "geometry": {"width": CARD_WIDTH},
+              "position": {"x": 400, "y": next_y, "origin": "center"},
+              "parent": {"id": FRAME_ID}
           }).encode()
-
-          miro_req = urllib.request.Request(
+          card_req = urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
-              data=miro_payload,
+              data=card_payload,
               headers={
                   "Authorization": f"Bearer {MIRO_TOKEN}",
                   "Content-Type": "application/json",
@@ -176,14 +133,12 @@ jobs:
               },
               method="POST"
           )
-
           try:
-              with urllib.request.urlopen(miro_req) as res:
+              with urllib.request.urlopen(card_req) as res:
                   result = json.loads(res.read())
-                  print(f"✓ Card created: {result.get('id')}")
+                  print(f"✓ Card posted: {result.get('id')}")
           except urllib.error.HTTPError as e:
-              body = e.read().decode()
-              print(f"Miro error {e.code}: {body}")
+              print(f"Miro error {e.code}: {e.read().decode()}")
               raise
 
           print("Done.")
