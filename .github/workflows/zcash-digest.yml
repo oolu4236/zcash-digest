@@ -26,18 +26,18 @@ jobs:
           FRAME_ID          = "3458764675063219436"
           EPOCH             = date(2026, 6, 10)
           CARD_WIDTH        = 600
-          CARD_STEP         = 350   # vertical space per day
-          START_Y           = 400
+          CARD_STEP         = 80    # compact — matches visual card height + small gap
+          START_Y           = 200   # below the frame header
 
           today = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
 
           # ── Step 1: Fetch Zcash forum via Claude web search ──
-          print("Fetching Zcash forum via Claude web search...")
+          print("Fetching Zcash forum...")
           prompt = f"""Today is {today}.
 
-Search the Zcash community forum (forum.zcashcommunity.com) and find what has been actively discussed in the last 24 hours.
+Search the Zcash community forum (forum.zcashcommunity.com) for active discussions in the last 24 hours.
 
-Write a concise TL;DR digest formatted as HTML. Use this exact structure:
+Write a concise TL;DR digest as HTML:
 
 <p><strong>📅 {today}</strong></p>
 <p><strong>🔥 TOP THREADS</strong></p>
@@ -51,7 +51,7 @@ Write a concise TL;DR digest formatted as HTML. Use this exact structure:
 </ul>
 <p><strong>🔍 WORTH WATCHING</strong></p>
 <ul>
-  <li>[thread title] — [brief reason why it matters]</li>
+  <li>[thread title] — [why it matters]</li>
 </ul>
 
 Return only the HTML. No markdown, no code fences."""
@@ -95,26 +95,24 @@ Return only the HTML. No markdown, no code fences."""
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
-          # ── Step 2: Calculate position & resize frame to fit ──
-          days_offset    = (date.today() - EPOCH).days
-          next_y         = START_Y + days_offset * CARD_STEP
-          needed_height  = next_y + 500          # just enough + small buffer
+          # ── Step 2: Calculate compact card position ──
+          days_offset   = (date.today() - EPOCH).days
+          next_y        = START_Y + days_offset * CARD_STEP
+          needed_height = next_y + 150   # just enough room for this card
 
-          print(f"Day {days_offset} → y={next_y}, frame height → {needed_height}")
+          print(f"Day {days_offset} → y={next_y}, frame height={needed_height}")
 
-          patch_payload = json.dumps({"geometry": {"height": needed_height}}).encode()
-          patch_req = urllib.request.Request(
+          # Patch frame to exactly fit today's card (no excess)
+          patch = json.dumps({"geometry": {"height": needed_height}}).encode()
+          urllib.request.urlopen(urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
-              data=patch_payload,
-              headers={
-                  "Authorization": f"Bearer {MIRO_TOKEN}",
-                  "Content-Type": "application/json",
-                  "Accept": "application/json",
-              },
+              data=patch,
+              headers={"Authorization": f"Bearer {MIRO_TOKEN}",
+                       "Content-Type": "application/json",
+                       "Accept": "application/json"},
               method="PATCH"
-          )
-          with urllib.request.urlopen(patch_req) as res:
-              print(f"Frame resized ok.")
+          ))
+          print("Frame fitted.")
 
           # ── Step 3: Post card ──
           card_payload = json.dumps({
@@ -123,18 +121,16 @@ Return only the HTML. No markdown, no code fences."""
               "position": {"x": 400, "y": next_y, "origin": "center"},
               "parent": {"id": FRAME_ID}
           }).encode()
-          card_req = urllib.request.Request(
-              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
-              data=card_payload,
-              headers={
-                  "Authorization": f"Bearer {MIRO_TOKEN}",
-                  "Content-Type": "application/json",
-                  "Accept": "application/json",
-              },
-              method="POST"
-          )
+
           try:
-              with urllib.request.urlopen(card_req) as res:
+              with urllib.request.urlopen(urllib.request.Request(
+                  f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
+                  data=card_payload,
+                  headers={"Authorization": f"Bearer {MIRO_TOKEN}",
+                           "Content-Type": "application/json",
+                           "Accept": "application/json"},
+                  method="POST"
+              )) as res:
                   result = json.loads(res.read())
                   print(f"✓ Card posted: {result.get('id')}")
           except urllib.error.HTTPError as e:
