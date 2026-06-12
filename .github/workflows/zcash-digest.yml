@@ -17,7 +17,7 @@ jobs:
           MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
         run: |
           python3 - << 'PYEOF'
-          import urllib.request, urllib.error, json, os
+          import urllib.request, urllib.error, json, os, textwrap
           from datetime import datetime, timezone, date
 
           ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
@@ -26,35 +26,36 @@ jobs:
           FRAME_ID          = "3458764675294246557"
           EPOCH             = date(2026, 6, 10)
           CARD_WIDTH        = 600
-          CARD_STEP         = 80    # compact — matches visual card height + small gap
-          START_Y           = 200   # below the frame header
+          CARD_STEP         = 80
+          START_Y           = 200
 
           today = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
 
           # ── Step 1: Fetch Zcash forum via Claude web search ──
           print("Fetching Zcash forum...")
-          prompt = f"""Today is {today}.
+          prompt = textwrap.dedent(f"""\
+          Today is {today}.
 
-Search the Zcash community forum (forum.zcashcommunity.com) for active discussions in the last 24 hours.
+          Search the Zcash community forum (forum.zcashcommunity.com) for active discussions in the last 24 hours.
 
-Write a concise TL;DR digest as HTML:
+          Write a concise TL;DR digest as HTML:
 
-<p><strong>📅 {today}</strong></p>
-<p><strong>🔥 TOP THREADS</strong></p>
-<ul>
-  <li>[thread title]: [1-2 sentence summary]</li>
-  <li>[thread title]: [1-2 sentence summary]</li>
-</ul>
-<p><strong>💬 COMMUNITY PULSE</strong></p>
-<ul>
-  <li>[1-2 sentences on overall mood/focus]</li>
-</ul>
-<p><strong>🔍 WORTH WATCHING</strong></p>
-<ul>
-  <li>[thread title] — [why it matters]</li>
-</ul>
+          <p><strong>📅 {today}</strong></p>
+          <p><strong>🔥 TOP THREADS</strong></p>
+          <ul>
+            <li>[thread title]: [1-2 sentence summary]</li>
+            <li>[thread title]: [1-2 sentence summary]</li>
+          </ul>
+          <p><strong>💬 COMMUNITY PULSE</strong></p>
+          <ul>
+            <li>[1-2 sentences on overall mood/focus]</li>
+          </ul>
+          <p><strong>🔍 WORTH WATCHING</strong></p>
+          <ul>
+            <li>[thread title] — [why it matters]</li>
+          </ul>
 
-Return only the HTML. No markdown, no code fences."""
+          Return only the HTML. No markdown, no code fences.""")
 
           messages = [{"role": "user", "content": prompt}]
           tools    = [{"type": "web_search_20250305", "name": "web_search"}]
@@ -98,11 +99,11 @@ Return only the HTML. No markdown, no code fences."""
           # ── Step 2: Calculate compact card position ──
           days_offset   = (date.today() - EPOCH).days
           next_y        = START_Y + days_offset * CARD_STEP
-          needed_height = next_y + 150   # just enough room for this card
+          needed_height = next_y + 150
 
           print(f"Day {days_offset} → y={next_y}, frame height={needed_height}")
 
-          # Patch frame to exactly fit today's card (no excess)
+          # Patch frame to exactly fit today's card
           patch = json.dumps({"geometry": {"height": needed_height}}).encode()
           urllib.request.urlopen(urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
