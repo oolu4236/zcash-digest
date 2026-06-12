@@ -23,7 +23,7 @@ jobs:
           ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
           MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
           MIRO_BOARD_ID     = os.environ["MIRO_BOARD_ID"]
-          FRAME_ID          = "3458764675063219436"
+          FRAME_ID          = "3458764675294246557"
           EPOCH             = date(2026, 6, 10)
           CARD_WIDTH        = 600
           CARD_STEP         = 80    # compact — matches visual card height + small gap
