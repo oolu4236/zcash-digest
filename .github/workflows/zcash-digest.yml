@@ -15,21 +15,27 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MIRO_TOKEN: ${{ secrets.MIRO_TOKEN }}
           MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - << 'PYEOF'
-          import urllib.request, urllib.error, json, os, textwrap
+          import urllib.request, urllib.error, json, os, textwrap, base64
           from datetime import datetime, timezone, date
 
           ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
           MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
           MIRO_BOARD_ID     = os.environ["MIRO_BOARD_ID"]
+          GITHUB_TOKEN      = os.environ["GITHUB_TOKEN"]
           FRAME_ID          = "3458764675294246557"
           EPOCH             = date(2026, 6, 10)
           CARD_WIDTH        = 600
           CARD_STEP         = 80
           START_Y           = 200
+          REPO              = "oolu4236/zcash-digest"
+          LOG_PATH          = "log.json"
+          LOG_BRANCH        = "gh-pages"
 
-          today = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
+          today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
+          today_iso = date.today().isoformat()
 
           # ── Step 1: Fetch Zcash forum via Claude web search ──
           print("Fetching Zcash forum...")
@@ -115,14 +121,16 @@ jobs:
           ))
           print("Frame fitted.")
 
-          # ── Step 3: Post card ──
+          # ── Step 3: Post card to Miro ──
+          card_title = f"Zcash Daily Digest — {today}"
           card_payload = json.dumps({
-              "data": {"title": f"Zcash Daily Digest — {today}", "description": summary},
+              "data": {"title": card_title, "description": summary},
               "geometry": {"width": CARD_WIDTH},
               "position": {"x": 400, "y": next_y, "origin": "center"},
               "parent": {"id": FRAME_ID}
           }).encode()
 
+          miro_card_id = None
           try:
               with urllib.request.urlopen(urllib.request.Request(
                   f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
@@ -133,10 +141,65 @@ jobs:
                   method="POST"
               )) as res:
                   result = json.loads(res.read())
-                  print(f"✓ Card posted: {result.get('id')}")
+                  miro_card_id = result.get("id")
+                  print(f"✓ Card posted: {miro_card_id}")
           except urllib.error.HTTPError as e:
               print(f"Miro error {e.code}: {e.read().decode()}")
               raise
+
+          # ── Step 4: Append to log.json on gh-pages ──
+          print("Updating log.json...")
+          gh_api = "https://api.github.com"
+          gh_headers = {
+              "Authorization": f"Bearer {GITHUB_TOKEN}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+          }
+
+          # Fetch existing log (if any)
+          log_sha = None
+          log_entries = []
+          try:
+              req = urllib.request.Request(
+                  f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}?ref={LOG_BRANCH}",
+                  headers=gh_headers
+              )
+              with urllib.request.urlopen(req) as res:
+                  file_data = json.loads(res.read())
+                  log_sha = file_data["sha"]
+                  log_entries = json.loads(base64.b64decode(file_data["content"]))
+          except urllib.error.HTTPError as e:
+              if e.code != 404:
+                  raise
+              print("  log.json not found — will create it.")
+
+          # Append new entry
+          log_entries.append({
+              "date": today_iso,
+              "title": card_title,
+              "content": summary,
+              "miro_card_id": miro_card_id,
+          })
+
+          # Push updated log
+          put_body = {
+              "message": f"digest: {today_iso}",
+              "content": base64.b64encode(
+                  json.dumps(log_entries, indent=2).encode()
+              ).decode(),
+              "branch": LOG_BRANCH,
+          }
+          if log_sha:
+              put_body["sha"] = log_sha
+
+          urllib.request.urlopen(urllib.request.Request(
+              f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}",
+              data=json.dumps(put_body).encode(),
+              headers=gh_headers,
+              method="PUT"
+          ))
+          print(f"✓ log.json updated ({len(log_entries)} entries).")
 
           print("Done.")
           PYEOF
