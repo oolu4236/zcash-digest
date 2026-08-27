@@ -5,6 +5,9 @@ on:
     - cron: '0 13 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   post-digest:
     runs-on: ubuntu-latest
@@ -37,7 +40,7 @@ jobs:
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
           today_iso = date.today().isoformat()
 
-          # ── Step 1: Fetch Zcash forum via Claude web search ──
+          # -- Step 1: Fetch Zcash forum via Claude web search --
           print("Fetching Zcash forum...")
           prompt = textwrap.dedent(f"""\
           Today is {today}.
@@ -102,12 +105,12 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
-          # ── Step 2: Calculate compact card position ──
+          # -- Step 2: Calculate compact card position --
           days_offset   = (date.today() - EPOCH).days
           next_y        = START_Y + days_offset * CARD_STEP
           needed_height = next_y + 150
 
-          print(f"Day {days_offset} → y={next_y}, frame height={needed_height}")
+          print(f"Day {days_offset} -> y={next_y}, frame height={needed_height}")
 
           # Patch frame to exactly fit today's card
           patch = json.dumps({"geometry": {"height": needed_height}}).encode()
@@ -121,8 +124,8 @@ jobs:
           ))
           print("Frame fitted.")
 
-          # ── Step 3: Post card to Miro ──
-          card_title = f"Zcash Daily Digest — {today}"
+          # -- Step 3: Post card to Miro --
+          card_title = f"Zcash Daily Digest - {today}"
           card_payload = json.dumps({
               "data": {"title": card_title, "description": summary},
               "geometry": {"width": CARD_WIDTH},
@@ -142,12 +145,12 @@ jobs:
               )) as res:
                   result = json.loads(res.read())
                   miro_card_id = result.get("id")
-                  print(f"✓ Card posted: {miro_card_id}")
+                  print(f"Card posted: {miro_card_id}")
           except urllib.error.HTTPError as e:
               print(f"Miro error {e.code}: {e.read().decode()}")
               raise
 
-          # ── Step 4: Append to log.json on gh-pages ──
+          # -- Step 4: Append to log.json on gh-pages --
           print("Updating log.json...")
           gh_api = "https://api.github.com"
           gh_headers = {
@@ -172,7 +175,7 @@ jobs:
           except urllib.error.HTTPError as e:
               if e.code != 404:
                   raise
-              print("  log.json not found — will create it.")
+              print("  log.json not found - will create it.")
 
           # Append new entry
           log_entries.append({
@@ -199,7 +202,7 @@ jobs:
               headers=gh_headers,
               method="PUT"
           ))
-          print(f"✓ log.json updated ({len(log_entries)} entries).")
+          print(f"log.json updated ({len(log_entries)} entries).")
 
           print("Done.")
           PYEOF
