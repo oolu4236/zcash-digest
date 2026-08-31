@@ -45,7 +45,7 @@ jobs:
           prompt = textwrap.dedent(f"""\
           Today is {today}.
 
-          Search the Zcash community forum (forum.zcashcommunity.com) for active discussions in the last 24 hours.
+          Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours.
 
           Write a concise TL;DR digest as HTML:
 
