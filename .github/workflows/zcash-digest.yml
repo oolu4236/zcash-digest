@@ -52,8 +52,8 @@ jobs:
           <p><strong>📅 {today}</strong></p>
           <p><strong>🔥 TOP THREADS</strong></p>
           <ul>
-            <li>[thread title]: [1-2 sentence summary]</li>
-            <li>[thread title]: [1-2 sentence summary]</li>
+            <li><a href="[forum URL]">[thread title]</a>: [1-2 sentence summary]</li>
+            <li><a href="[forum URL]">[thread title]</a>: [1-2 sentence summary]</li>
           </ul>
           <p><strong>💬 COMMUNITY PULSE</strong></p>
           <ul>
@@ -61,7 +61,7 @@ jobs:
           </ul>
           <p><strong>🔍 WORTH WATCHING</strong></p>
           <ul>
-            <li>[thread title] — [why it matters]</li>
+            <li><a href="[forum URL]">[thread title]</a> — [why it matters]</li>
           </ul>
 
           Return only the HTML. No markdown, no code fences.""")
