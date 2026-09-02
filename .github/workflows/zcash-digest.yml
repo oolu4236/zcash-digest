@@ -81,8 +81,12 @@ jobs:
                   },
                   method="POST"
               )
-              with urllib.request.urlopen(req) as res:
-                  data = json.loads(res.read())
+              try:
+                  with urllib.request.urlopen(req) as res:
+                      data = json.loads(res.read())
+              except urllib.error.HTTPError as api_err:
+                  print(f"Claude API error {api_err.code}: {api_err.read().decode()}")
+                  raise
               messages.append({"role": "assistant", "content": data["content"]})
               if data["stop_reason"] == "end_turn":
                   summary = " ".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
