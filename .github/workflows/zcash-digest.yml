@@ -1,4 +1,4 @@
-name: Zcash Daily Digest → Miro
+name: Zcash Daily Digest -> Miro
 
 on:
   schedule:
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Fetch Zcash forum & summarize & post to Miro
+      - name: Fetch Zcash forum and summarize and post to Miro
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MIRO_TOKEN: ${{ secrets.MIRO_TOKEN }}
@@ -40,34 +40,23 @@ jobs:
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
           today_iso = date.today().isoformat()
 
-          # -- Step 1: Fetch Zcash forum via Claude web search --
           print("Fetching Zcash forum...")
-          prompt = textwrap.dedent(f"""\
-          Today is {today}.
-
-          Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours.
-
-          Write the digest in the style of a New York Times editorial briefing — authoritative, engaging, with sharp editorial voice. Use vivid language, strong verbs, and opinionated framing that draws readers in. Each item should read like a compelling lede, not a dry summary. Think "Morning Briefing" meets op-ed page.
-
-          Format as HTML:
-
-          <h3>The Zcash Brief — {today}</h3>
-          <p><em>[One punchy editorial sentence capturing the day's theme or mood]</em></p>
-
-          <p><strong>THE BIG STORIES</strong></p>
-          <ul>
-            <li><a href="[forum URL]"><strong>[thread title]</strong></a> — [2-3 sentences, editorial in tone. Why this matters. What's at stake. Who should care.]</li>
-          </ul>
-
-          <p><strong>THE PULSE</strong></p>
-          <p>[2-3 sentences. Read the room — what's the community energy? Where is momentum building or stalling? Write this like a columnist who's been following Zcash for years.]</p>
-
-          <p><strong>WATCH LIST</strong></p>
-          <ul>
-            <li><a href="[forum URL]"><strong>[thread title]</strong></a> — [1-2 sentences. Why this deserves attention before it becomes the main story.]</li>
-          </ul>
-
-          Every thread title MUST be hyperlinked to its actual forum.zcashcommunity.com URL. Return only the HTML. No markdown, no code fences.""")
+          prompt = (
+              f"Today is {today}. "
+              f"Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. "
+              f"If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours. "
+              f"Write the digest in the style of a New York Times editorial briefing - authoritative, engaging, with sharp editorial voice. "
+              f"Use vivid language, strong verbs, and opinionated framing that draws readers in. "
+              f"Each item should read like a compelling lede, not a dry summary. Think Morning Briefing meets op-ed page. "
+              f"Format as HTML. Start with: <h3>The Zcash Brief - {today}</h3> "
+              f"<p><em>[One punchy editorial sentence capturing the day theme or mood]</em></p> "
+              f"Then sections: <p><strong>THE BIG STORIES</strong></p> with a <ul> of 3-4 items, each as "
+              f"<li><a href='[actual forum URL]'><strong>[thread title]</strong></a> - [2-3 editorial sentences. Why this matters. What is at stake.]</li> "
+              f"Then: <p><strong>THE PULSE</strong></p> <p>[2-3 sentences reading the room like a columnist]</p> "
+              f"Then: <p><strong>WATCH LIST</strong></p> with a <ul> of 1-2 items, same linked format. "
+              f"Every thread title MUST be hyperlinked to its actual forum.zcashcommunity.com URL. "
+              f"Return only the HTML. No markdown, no code fences."
+          )
 
           messages = [{"role": "user", "content": prompt}]
           tools    = [{"type": "web_search_20250305", "name": "web_search"}]
@@ -77,7 +66,7 @@ jobs:
               print(f"  Claude turn {attempt + 1}...")
               payload = json.dumps({
                   "model": "claude-sonnet-4-6",
-                  "max_tokens": 2000,
+                  "max_tokens": 4000,
                   "tools": tools,
                   "messages": messages
               }).encode()
@@ -108,14 +97,12 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
-          # -- Step 2: Calculate compact card position --
           days_offset   = (date.today() - EPOCH).days
           next_y        = START_Y + days_offset * CARD_STEP
           needed_height = next_y + 150
 
           print(f"Day {days_offset} -> y={next_y}, frame height={needed_height}")
 
-          # Patch frame to exactly fit today's card
           patch = json.dumps({"geometry": {"height": needed_height}}).encode()
           urllib.request.urlopen(urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
@@ -127,8 +114,7 @@ jobs:
           ))
           print("Frame fitted.")
 
-          # -- Step 3: Post card to Miro --
-          card_title = f"Zcash Daily Digest - {today}"
+          card_title = f"The Zcash Brief - {today}"
           card_payload = json.dumps({
               "data": {"title": card_title, "description": summary},
               "geometry": {"width": CARD_WIDTH},
@@ -153,7 +139,6 @@ jobs:
               print(f"Miro error {e.code}: {e.read().decode()}")
               raise
 
-          # -- Step 4: Append to log.json on gh-pages --
           print("Updating log.json...")
           gh_api = "https://api.github.com"
           gh_headers = {
@@ -163,7 +148,6 @@ jobs:
               "Content-Type": "application/json",
           }
 
-          # Fetch existing log (if any)
           log_sha = None
           log_entries = []
           try:
@@ -180,7 +164,6 @@ jobs:
                   raise
               print("  log.json not found - will create it.")
 
-          # Append new entry
           log_entries.append({
               "date": today_iso,
               "title": card_title,
@@ -188,7 +171,6 @@ jobs:
               "miro_card_id": miro_card_id,
           })
 
-          # Push updated log
           put_body = {
               "message": f"digest: {today_iso}",
               "content": base64.b64encode(
