@@ -45,6 +45,8 @@ jobs:
               f"Today is {today}. "
               f"Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. "
               f"If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours. "
+              f"IMPORTANT: Prioritize NEW threads and developments. If an ongoing story (like a vote or upgrade) was already covered in recent days, only mention it if there is a genuinely new development - a new milestone, a surprising reply, a deadline shift. "
+              f"Do NOT re-explain the same story with slightly different words each day. If nothing new happened on it, skip it and find something fresh. "
               f"Write a SHORT digest with personality. Think a smart friend catching you up over coffee, not a newspaper. "
               f"Be warm, direct, and opinionated. One sentence per item - make it count. No filler, no hedging, no repeating yourself. "
               f"STRICT LENGTH: each list item must be MAX 2 sentences. THE PULSE must be MAX 2 sentences. "
