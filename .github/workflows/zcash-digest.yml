@@ -52,12 +52,13 @@ jobs:
               f"STRICT LENGTH: each list item must be MAX 2 sentences. THE PULSE must be MAX 2 sentences. "
               f"Do NOT include preamble like 'Based on search results' or 'Now I have enough information'. Jump straight into the HTML. "
               f"Format as HTML: "
-              f"<h3>The Zcash Brief - {today}</h3> "
+              f"<h3>The Zcash Daily - {today}</h3> "
               f"<p><em>[One sharp sentence - the vibe today]</em></p> "
               f"<p><strong>THE BIG STORIES</strong></p> <ul> 3-4 items as "
               f"<li><a href='[forum URL]'><strong>[title]</strong></a> - [1-2 punchy sentences max]</li> </ul> "
               f"<p><strong>THE PULSE</strong></p> <p>[2 sentences max. Read the room.]</p> "
               f"<p><strong>WATCH LIST</strong></p> <ul> 1-2 items, same format </ul> "
+              f"<p><em>Follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
               f"Every title MUST link to its forum.zcashcommunity.com URL. Return ONLY the HTML. No markdown, no code fences, no preamble."
           )
 
@@ -121,7 +122,7 @@ jobs:
           ))
           print("Frame fitted.")
 
-          card_title = f"The Zcash Brief - {today}"
+          card_title = f"The Zcash Daily - {today}"
           card_payload = json.dumps({
               "data": {"title": card_title, "description": summary},
               "geometry": {"width": CARD_WIDTH},
