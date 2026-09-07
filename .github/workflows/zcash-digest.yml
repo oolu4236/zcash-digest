@@ -19,15 +19,23 @@ jobs:
           MIRO_TOKEN: ${{ secrets.MIRO_TOKEN }}
           MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
         run: |
           python3 - << 'PYEOF'
           import urllib.request, urllib.error, json, os, textwrap, base64
           from datetime import datetime, timezone, date
 
-          ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-          MIRO_TOKEN        = os.environ["MIRO_TOKEN"]
-          MIRO_BOARD_ID     = os.environ["MIRO_BOARD_ID"]
-          GITHUB_TOKEN      = os.environ["GITHUB_TOKEN"]
+          ANTHROPIC_API_KEY     = os.environ["ANTHROPIC_API_KEY"]
+          MIRO_TOKEN            = os.environ["MIRO_TOKEN"]
+          MIRO_BOARD_ID         = os.environ["MIRO_BOARD_ID"]
+          GITHUB_TOKEN          = os.environ["GITHUB_TOKEN"]
+          TWITTER_API_KEY       = os.environ.get("TWITTER_API_KEY", "")
+          TWITTER_API_SECRET    = os.environ.get("TWITTER_API_SECRET", "")
+          TWITTER_ACCESS_TOKEN  = os.environ.get("TWITTER_ACCESS_TOKEN", "")
+          TWITTER_ACCESS_SECRET = os.environ.get("TWITTER_ACCESS_SECRET", "")
           FRAME_ID          = "3458764675294246557"
           EPOCH             = date(2026, 6, 10)
           CARD_WIDTH        = 600
@@ -196,6 +204,87 @@ jobs:
               method="PUT"
           ))
           print(f"log.json updated ({len(log_entries)} entries).")
+
+          # --- Post to Twitter/X ---
+          if TWITTER_API_KEY and TWITTER_ACCESS_TOKEN:
+              import hashlib, hmac, time, urllib.parse, secrets as sec
+
+              print("Generating tweet...")
+              tweet_prompt = (
+                  f"Condense this HTML digest into a single tweet (max 280 chars). "
+                  f"Format: one-line hook, then 2-3 bullet points using • as bullet, "
+                  f"end with the forum thread URL for the top story. "
+                  f"No hashtags except #Zcash. No emojis. Sharp and editorial.\n\n{summary}"
+              )
+              tweet_payload = json.dumps({
+                  "model": "claude-haiku-4-5-20251001",
+                  "max_tokens": 300,
+                  "messages": [{"role": "user", "content": tweet_prompt}]
+              }).encode()
+              tweet_req = urllib.request.Request(
+                  "https://api.anthropic.com/v1/messages",
+                  data=tweet_payload,
+                  headers={
+                      "Content-Type": "application/json",
+                      "x-api-key": ANTHROPIC_API_KEY,
+                      "anthropic-version": "2023-06-01",
+                  },
+                  method="POST"
+              )
+              with urllib.request.urlopen(tweet_req) as res:
+                  tweet_data = json.loads(res.read())
+              tweet_text = tweet_data["content"][0]["text"].strip()
+              if len(tweet_text) > 280:
+                  tweet_text = tweet_text[:277] + "..."
+              print(f"Tweet ({len(tweet_text)} chars): {tweet_text}")
+
+              # OAuth 1.0a signature
+              def oauth_sign(method, url, params):
+                  base = "&".join([
+                      method.upper(),
+                      urllib.parse.quote(url, safe=""),
+                      urllib.parse.quote("&".join(
+                          f"{urllib.parse.quote(k, safe='')}={urllib.parse.quote(v, safe='')}"
+                          for k, v in sorted(params.items())
+                      ), safe="")
+                  ])
+                  key = f"{urllib.parse.quote(TWITTER_API_SECRET, safe='')}&{urllib.parse.quote(TWITTER_ACCESS_SECRET, safe='')}"
+                  sig = base64.b64encode(hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()).decode()
+                  return sig
+
+              tw_url = "https://api.x.com/2/tweets"
+              oauth_params = {
+                  "oauth_consumer_key": TWITTER_API_KEY,
+                  "oauth_nonce": sec.token_hex(16),
+                  "oauth_signature_method": "HMAC-SHA1",
+                  "oauth_timestamp": str(int(time.time())),
+                  "oauth_token": TWITTER_ACCESS_TOKEN,
+                  "oauth_version": "1.0",
+              }
+              oauth_params["oauth_signature"] = oauth_sign("POST", tw_url, oauth_params)
+              auth_header = "OAuth " + ", ".join(
+                  f'{urllib.parse.quote(k, safe="")}="{urllib.parse.quote(v, safe="")}"'
+                  for k, v in sorted(oauth_params.items())
+              )
+
+              tw_payload = json.dumps({"text": tweet_text}).encode()
+              tw_req = urllib.request.Request(
+                  tw_url,
+                  data=tw_payload,
+                  headers={
+                      "Authorization": auth_header,
+                      "Content-Type": "application/json",
+                  },
+                  method="POST"
+              )
+              try:
+                  with urllib.request.urlopen(tw_req) as res:
+                      tw_result = json.loads(res.read())
+                      print(f"Tweet posted: {tw_result['data']['id']}")
+              except urllib.error.HTTPError as e:
+                  print(f"Twitter error {e.code}: {e.read().decode()}")
+          else:
+              print("Twitter credentials not set, skipping tweet.")
 
           print("Done.")
           PYEOF
