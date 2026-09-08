@@ -42,26 +42,24 @@ jobs:
           TWITTER_API_SECRET    = os.environ.get("TWITTER_API_SECRET", "")
           TWITTER_ACCESS_TOKEN  = os.environ.get("TWITTER_ACCESS_TOKEN", "")
           TWITTER_ACCESS_SECRET = os.environ.get("TWITTER_ACCESS_SECRET", "")
-          FRAME_ID          = "3458764675294246557"
-          EPOCH             = date(2026, 6, 10)
-          CARD_WIDTH        = 600
-          CARD_STEP         = 80
-          START_Y           = 200
-          REPO              = "oolu4236/zcash-digest"
-          LOG_PATH          = "log.json"
-          LOG_BRANCH        = "gh-pages"
+          FRAME_ID   = "3458764675294246557"
+          EPOCH      = date(2026, 6, 10)
+          CARD_WIDTH = 600
+          CARD_STEP  = 80
+          START_Y    = 200
+          REPO       = "oolu4236/zcash-digest"
+          LOG_PATH   = "log.json"
+          LOG_BRANCH = "gh-pages"
 
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
           today_iso = date.today().isoformat()
 
+          # --- Generate or use custom digest ---
           custom = os.environ.get("CUSTOM_CONTENT", "").strip()
           if custom:
               summary = custom
               print("Using custom content.")
           else:
-              summary = ""
-
-          if not custom:
               print("Fetching Zcash forum...")
               prompt = (
                   f"Today is {today}. "
@@ -85,7 +83,8 @@ jobs:
               )
 
               messages = [{"role": "user", "content": prompt}]
-              tools    = [{"type": "web_search_20250305", "name": "web_search"}]
+              tools = [{"type": "web_search_20250305", "name": "web_search"}]
+              summary = ""
 
               for attempt in range(6):
                   print(f"  Claude turn {attempt + 1}...")
@@ -93,7 +92,7 @@ jobs:
                       "model": "claude-sonnet-4-6",
                       "max_tokens": 4000,
                       "tools": tools,
-                      "messages": messages
+                      "messages": messages,
                   }).encode()
                   req = urllib.request.Request(
                       "https://api.anthropic.com/v1/messages",
@@ -104,7 +103,7 @@ jobs:
                           "anthropic-version": "2023-06-01",
                           "anthropic-beta": "web-search-2025-03-05",
                       },
-                      method="POST"
+                      method="POST",
                   )
                   try:
                       with urllib.request.urlopen(req) as res:
@@ -114,7 +113,9 @@ jobs:
                       raise
                   messages.append({"role": "assistant", "content": data["content"]})
                   if data["stop_reason"] == "end_turn":
-                      summary = " ".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
+                      summary = " ".join(
+                          b["text"] for b in data["content"] if b["type"] == "text"
+                      ).strip()
                       break
                   if data["stop_reason"] == "tool_use":
                       messages.append({"role": "user", "content": [
@@ -126,6 +127,7 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
+          # --- Post to Miro ---
           days_offset   = (date.today() - EPOCH).days
           next_y        = START_Y + days_offset * CARD_STEP
           needed_height = next_y + 150
@@ -136,10 +138,12 @@ jobs:
           urllib.request.urlopen(urllib.request.Request(
               f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
               data=patch,
-              headers={"Authorization": f"Bearer {MIRO_TOKEN}",
-                       "Content-Type": "application/json",
-                       "Accept": "application/json"},
-              method="PATCH"
+              headers={
+                  "Authorization": f"Bearer {MIRO_TOKEN}",
+                  "Content-Type": "application/json",
+                  "Accept": "application/json",
+              },
+              method="PATCH",
           ))
           print("Frame fitted.")
 
@@ -148,7 +152,7 @@ jobs:
               "data": {"title": card_title, "description": summary},
               "geometry": {"width": CARD_WIDTH},
               "position": {"x": 400, "y": next_y, "origin": "center"},
-              "parent": {"id": FRAME_ID}
+              "parent": {"id": FRAME_ID},
           }).encode()
 
           miro_card_id = None
@@ -156,10 +160,12 @@ jobs:
               with urllib.request.urlopen(urllib.request.Request(
                   f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
                   data=card_payload,
-                  headers={"Authorization": f"Bearer {MIRO_TOKEN}",
-                           "Content-Type": "application/json",
-                           "Accept": "application/json"},
-                  method="POST"
+                  headers={
+                      "Authorization": f"Bearer {MIRO_TOKEN}",
+                      "Content-Type": "application/json",
+                      "Accept": "application/json",
+                  },
+                  method="POST",
               )) as res:
                   result = json.loads(res.read())
                   miro_card_id = result.get("id")
@@ -168,6 +174,7 @@ jobs:
               print(f"Miro error {e.code}: {e.read().decode()}")
               raise
 
+          # --- Update log.json ---
           print("Updating log.json...")
           gh_api = "https://api.github.com"
           gh_headers = {
@@ -182,7 +189,7 @@ jobs:
           try:
               req = urllib.request.Request(
                   f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}?ref={LOG_BRANCH}",
-                  headers=gh_headers
+                  headers=gh_headers,
               )
               with urllib.request.urlopen(req) as res:
                   file_data = json.loads(res.read())
@@ -214,7 +221,7 @@ jobs:
               f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}",
               data=json.dumps(put_body).encode(),
               headers=gh_headers,
-              method="PUT"
+              method="PUT",
           ))
           print(f"log.json updated ({len(log_entries)} entries).")
 
@@ -232,7 +239,7 @@ jobs:
               tweet_payload = json.dumps({
                   "model": "claude-haiku-4-5-20251001",
                   "max_tokens": 300,
-                  "messages": [{"role": "user", "content": tweet_prompt}]
+                  "messages": [{"role": "user", "content": tweet_prompt}],
               }).encode()
               tweet_req = urllib.request.Request(
                   "https://api.anthropic.com/v1/messages",
@@ -242,7 +249,7 @@ jobs:
                       "x-api-key": ANTHROPIC_API_KEY,
                       "anthropic-version": "2023-06-01",
                   },
-                  method="POST"
+                  method="POST",
               )
               with urllib.request.urlopen(tweet_req) as res:
                   tweet_data = json.loads(res.read())
@@ -259,10 +266,15 @@ jobs:
                       urllib.parse.quote("&".join(
                           f"{urllib.parse.quote(k, safe='')}={urllib.parse.quote(v, safe='')}"
                           for k, v in sorted(params.items())
-                      ), safe="")
+                      ), safe=""),
                   ])
-                  key = f"{urllib.parse.quote(TWITTER_API_SECRET, safe='')}&{urllib.parse.quote(TWITTER_ACCESS_SECRET, safe='')}"
-                  sig = base64.b64encode(hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()).decode()
+                  key = (
+                      f"{urllib.parse.quote(TWITTER_API_SECRET, safe='')}"
+                      f"&{urllib.parse.quote(TWITTER_ACCESS_SECRET, safe='')}"
+                  )
+                  sig = base64.b64encode(
+                      hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()
+                  ).decode()
                   return sig
 
               tw_url = "https://api.x.com/2/tweets"
@@ -288,7 +300,7 @@ jobs:
                       "Authorization": auth_header,
                       "Content-Type": "application/json",
                   },
-                  method="POST"
+                  method="POST",
               )
               try:
                   with urllib.request.urlopen(tw_req) as res:
