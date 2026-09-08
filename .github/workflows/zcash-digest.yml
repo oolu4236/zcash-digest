@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '47 14 * * *'
   workflow_dispatch:
+    inputs:
+      custom_content:
+        description: 'Optional: paste custom HTML digest content to skip auto-generation'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -19,6 +24,7 @@ jobs:
           MIRO_TOKEN: ${{ secrets.MIRO_TOKEN }}
           MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_CONTENT: ${{ inputs.custom_content }}
           TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
           TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
           TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
@@ -48,66 +54,73 @@ jobs:
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
           today_iso = date.today().isoformat()
 
-          print("Fetching Zcash forum...")
-          prompt = (
-              f"Today is {today}. "
-              f"Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. "
-              f"If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours. "
-              f"IMPORTANT: Prioritize NEW threads and developments. If an ongoing story (like a vote or upgrade) was already covered in recent days, only mention it if there is a genuinely new development - a new milestone, a surprising reply, a deadline shift. "
-              f"Do NOT re-explain the same story with slightly different words each day. If nothing new happened on it, skip it and find something fresh. "
-              f"Write a SHORT digest with personality. Think a smart friend catching you up over coffee, not a newspaper. "
-              f"Be warm, direct, and opinionated. One sentence per item - make it count. No filler, no hedging, no repeating yourself. "
-              f"STRICT LENGTH: each list item must be MAX 2 sentences. THE PULSE must be MAX 2 sentences. "
-              f"Do NOT include preamble like 'Based on search results' or 'Now I have enough information'. Jump straight into the HTML. "
-              f"Format as HTML: "
-              f"<h3>The Zcash Daily - {today}</h3> "
-              f"<p><em>[One sharp sentence - the vibe today]</em></p> "
-              f"<p><strong>THE BIG STORIES</strong></p> <ul> 3-4 items as "
-              f"<li><a href='[forum URL]'><strong>[title]</strong></a> - [1-2 punchy sentences max]</li> </ul> "
-              f"<p><strong>THE PULSE</strong></p> <p>[2 sentences max. Read the room.]</p> "
-              f"<p><strong>WATCH LIST</strong></p> <ul> 1-2 items, same format </ul> "
-              f"<p><em>Follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
-              f"Every title MUST link to its forum.zcashcommunity.com URL. Return ONLY the HTML. No markdown, no code fences, no preamble."
-          )
+          custom = os.environ.get("CUSTOM_CONTENT", "").strip()
+          if custom:
+              summary = custom
+              print("Using custom content.")
+          else:
+              summary = ""
 
-          messages = [{"role": "user", "content": prompt}]
-          tools    = [{"type": "web_search_20250305", "name": "web_search"}]
-          summary  = ""
-
-          for attempt in range(6):
-              print(f"  Claude turn {attempt + 1}...")
-              payload = json.dumps({
-                  "model": "claude-sonnet-4-6",
-                  "max_tokens": 4000,
-                  "tools": tools,
-                  "messages": messages
-              }).encode()
-              req = urllib.request.Request(
-                  "https://api.anthropic.com/v1/messages",
-                  data=payload,
-                  headers={
-                      "Content-Type": "application/json",
-                      "x-api-key": ANTHROPIC_API_KEY,
-                      "anthropic-version": "2023-06-01",
-                      "anthropic-beta": "web-search-2025-03-05",
-                  },
-                  method="POST"
+          if not custom:
+              print("Fetching Zcash forum...")
+              prompt = (
+                  f"Today is {today}. "
+                  f"Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. "
+                  f"If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours. "
+                  f"IMPORTANT: Prioritize NEW threads and developments. If an ongoing story (like a vote or upgrade) was already covered in recent days, only mention it if there is a genuinely new development - a new milestone, a surprising reply, a deadline shift. "
+                  f"Do NOT re-explain the same story with slightly different words each day. If nothing new happened on it, skip it and find something fresh. "
+                  f"Write a SHORT digest with personality. Think a smart friend catching you up over coffee, not a newspaper. "
+                  f"Be warm, direct, and opinionated. One sentence per item - make it count. No filler, no hedging, no repeating yourself. "
+                  f"STRICT LENGTH: each list item must be MAX 2 sentences. THE PULSE must be MAX 2 sentences. "
+                  f"Do NOT include preamble like 'Based on search results' or 'Now I have enough information'. Jump straight into the HTML. "
+                  f"Format as HTML: "
+                  f"<h3>The Zcash Daily - {today}</h3> "
+                  f"<p><em>[One sharp sentence - the vibe today]</em></p> "
+                  f"<p><strong>THE BIG STORIES</strong></p> <ul> 3-4 items as "
+                  f"<li><a href='[forum URL]'><strong>[title]</strong></a> - [1-2 punchy sentences max]</li> </ul> "
+                  f"<p><strong>THE PULSE</strong></p> <p>[2 sentences max. Read the room.]</p> "
+                  f"<p><strong>WATCH LIST</strong></p> <ul> 1-2 items, same format </ul> "
+                  f"<p><em>Follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
+                  f"Every title MUST link to its forum.zcashcommunity.com URL. Return ONLY the HTML. No markdown, no code fences, no preamble."
               )
-              try:
-                  with urllib.request.urlopen(req) as res:
-                      data = json.loads(res.read())
-              except urllib.error.HTTPError as api_err:
-                  print(f"Claude API error {api_err.code}: {api_err.read().decode()}")
-                  raise
-              messages.append({"role": "assistant", "content": data["content"]})
-              if data["stop_reason"] == "end_turn":
-                  summary = " ".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
-                  break
-              if data["stop_reason"] == "tool_use":
-                  messages.append({"role": "user", "content": [
-                      {"type": "tool_result", "tool_use_id": b["id"], "content": b.get("output", "")}
-                      for b in data["content"] if b["type"] == "tool_use"
-                  ]})
+
+              messages = [{"role": "user", "content": prompt}]
+              tools    = [{"type": "web_search_20250305", "name": "web_search"}]
+
+              for attempt in range(6):
+                  print(f"  Claude turn {attempt + 1}...")
+                  payload = json.dumps({
+                      "model": "claude-sonnet-4-6",
+                      "max_tokens": 4000,
+                      "tools": tools,
+                      "messages": messages
+                  }).encode()
+                  req = urllib.request.Request(
+                      "https://api.anthropic.com/v1/messages",
+                      data=payload,
+                      headers={
+                          "Content-Type": "application/json",
+                          "x-api-key": ANTHROPIC_API_KEY,
+                          "anthropic-version": "2023-06-01",
+                          "anthropic-beta": "web-search-2025-03-05",
+                      },
+                      method="POST"
+                  )
+                  try:
+                      with urllib.request.urlopen(req) as res:
+                          data = json.loads(res.read())
+                  except urllib.error.HTTPError as api_err:
+                      print(f"Claude API error {api_err.code}: {api_err.read().decode()}")
+                      raise
+                  messages.append({"role": "assistant", "content": data["content"]})
+                  if data["stop_reason"] == "end_turn":
+                      summary = " ".join(b["text"] for b in data["content"] if b["type"] == "text").strip()
+                      break
+                  if data["stop_reason"] == "tool_use":
+                      messages.append({"role": "user", "content": [
+                          {"type": "tool_result", "tool_use_id": b["id"], "content": b.get("output", "")}
+                          for b in data["content"] if b["type"] == "tool_use"
+                      ]})
 
           if not summary:
               raise Exception("No summary from Claude.")
