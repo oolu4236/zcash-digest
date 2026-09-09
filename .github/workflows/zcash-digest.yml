@@ -60,26 +60,88 @@ jobs:
               summary = custom
               print("Using custom content.")
           else:
-              print("Fetching Zcash forum...")
+              # Fetch last digest to avoid repetition
+              print("Fetching last digest for context...")
+              last_digest = ""
+              try:
+                  req = urllib.request.Request(
+                      f"https://api.github.com/repos/{REPO}/contents/{LOG_PATH}?ref={LOG_BRANCH}",
+                      headers={
+                          "Authorization": f"Bearer {GITHUB_TOKEN}",
+                          "Accept": "application/vnd.github+json",
+                      },
+                  )
+                  with urllib.request.urlopen(req) as res:
+                      file_data = json.loads(res.read())
+                      entries = json.loads(base64.b64decode(file_data["content"]))
+                      if entries:
+                          last_digest = entries[-1].get("content", "")
+                          print(f"  Last digest: {entries[-1].get('date', '?')}")
+              except Exception as e:
+                  print(f"  Could not fetch last digest: {e}")
+
+              # Determine day theme
+              weekday = datetime.now(timezone.utc).strftime("%A")
+              if weekday == "Monday":
+                  day_theme = (
+                      "THEME: Weekend recap. Cover Friday through Monday. "
+                      "Broader lens — what shifted over the weekend?"
+                  )
+              elif weekday == "Wednesday":
+                  day_theme = (
+                      "THEME: Builder spotlight. Pick ONE grant application, tool, or project "
+                      "and go deeper on it — why it matters, what's interesting, what questions it raises. "
+                      "Do not list multiple projects surface-level."
+                  )
+              elif weekday == "Friday":
+                  day_theme = (
+                      "THEME: The week's undercurrent. What is the thing nobody is talking about "
+                      "but should be? Step back from the headlines and surface something deeper — "
+                      "a pattern, a tension, a question the community is avoiding."
+                  )
+              else:
+                  day_theme = (
+                      "THEME: Open. Cover what's genuinely new and interesting. "
+                      "If nothing meaningful happened in the last 24 hours, say so in one honest paragraph "
+                      "and explore a single question or observation instead. "
+                      "A short, thoughtful post beats a long empty one."
+                  )
+
+              print(f"Fetching Zcash forum ({weekday})...")
               prompt = (
                   f"Today is {today}. "
-                  f"Search the Zcash community forum (forum.zcashcommunity.com) for active discussions since the last digest. "
-                  f"If today is Monday, cover the entire weekend (Friday through Monday). Otherwise cover the last 24 hours. "
-                  f"IMPORTANT: Prioritize NEW threads and developments. Do NOT repeat ongoing stories unless there is a genuinely new development. If nothing new happened, skip it and find something fresh. "
-                  f"VOICE: You are writing as a person thinking out loud — not a news anchor, not an LLM summary. "
-                  f"Write like someone who is way-finding through the Zcash ecosystem publicly — curious, honest, willing to say 'I don't know'. "
+                  f"\n\n{day_theme}"
+                  f"\n\nSOURCES — search broadly, not just the forum: "
+                  f"1) forum.zcashcommunity.com for new threads and replies. "
+                  f"2) GitHub activity across Zcash repos (zcash, librustzcash, zebra, orchard) — new PRs, merged code, releases. "
+                  f"3) Crypto news coverage about Zcash — media articles, regulatory developments. "
+                  f"4) X/Twitter posts from core Zcash contributors and developers. "
+                  f"5) On-chain signals — shielded pool percentage, transaction volume, hashrate shifts. "
+                  f"\n\nNO REPETITION — here is the last digest that was published. "
+                  f"Do NOT repeat any thread, topic, stat, or framing from it. "
+                  f"If a story was covered before, only mention it if there is a genuinely NEW development "
+                  f"(a new milestone, vote result, surprising reply, deadline change). "
+                  f"If you cannot find enough fresh material, write a shorter digest — 2-3 paragraphs is fine. "
+                  f"Do NOT pad with old stories to fill space."
+                  f"\n\n<last_digest>\n{last_digest}\n</last_digest>"
+                  f"\n\nVOICE: You are writing as a person thinking out loud — not a news anchor, not an LLM summary. "
+                  f"Write like someone way-finding through the Zcash ecosystem publicly — curious, honest, willing to say 'I don't know'. "
                   f"Surface things people might not be paying attention to. Ask real questions. Have a take, even if tentative. "
-                  f"Do NOT use rigid sections like 'THE BIG STORIES' or 'WATCH LIST'. Let the writing flow naturally, paragraph by paragraph. "
-                  f"Each paragraph should focus on one thread or theme, with the thread title hyperlinked naturally in the text. "
+                  f"COMMUNITY VOICES: If you find a forum reply that's sharp or surprising, quote the person directly. "
+                  f"Surface the human, not just the thread. People engage when they see themselves reflected. "
+                  f"COMMENTARY OVER COVERAGE: On slow days, explore one question honestly rather than listing headlines. "
+                  f"e.g. 'Why does the NU7 vote matter if no ZIP makes it binding?' — that's the content that gets shared. "
+                  f"\n\nFORMAT: flowing paragraphs, no rigid sections. "
+                  f"Each paragraph focuses on one thread or theme, with titles hyperlinked naturally. "
                   f"Use emoticons sparingly where they add warmth (🛡️ 🗳️ 📣). "
-                  f"STRICT: keep it tight. 4-6 short paragraphs max. No filler, no hedging, no preamble. "
-                  f"Do NOT start with 'Based on search results' or 'Now I have enough information'. Jump straight into the HTML. "
-                  f"Format as HTML with <br> between paragraphs for spacing: "
+                  f"Keep it tight — 3-5 short paragraphs max. No filler, no hedging, no preamble. "
+                  f"Do NOT start with 'Based on search results' or any meta-commentary. Jump straight into the HTML. "
+                  f"\n\nHTML structure with <br> between paragraphs: "
                   f"<h3>🛡️ The Zcash Daily — {today}</h3><br> "
-                  f"[4-6 paragraphs, each wrapped in <p> tags, separated by <br>] "
+                  f"[paragraphs in <p> tags separated by <br>] "
                   f"End with: <br><p><em>📣 We're experimenting with the voice and format of this digest — what's landing? What's not? "
                   f"Reply here or tell us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
-                  f"Every thread title MUST link to its forum.zcashcommunity.com URL. Return ONLY the HTML. No markdown, no code fences."
+                  f"\n\nReturn ONLY the HTML. No markdown, no code fences."
               )
 
               messages = [{"role": "user", "content": prompt}]
