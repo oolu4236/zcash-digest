@@ -189,6 +189,56 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
+          # --- Verify all links ---
+          import re
+          print("Verifying links...")
+          urls = re.findall(r'href=["\']([^"\']+)["\']', summary)
+          broken = []
+          for url in urls:
+              if url.startswith("mailto:") or url.startswith("#"):
+                  continue
+              try:
+                  check_req = urllib.request.Request(url, method="HEAD")
+                  check_req.add_header("User-Agent", "Mozilla/5.0 (compatible; ZcashDigestBot/1.0)")
+                  with urllib.request.urlopen(check_req, timeout=10) as resp:
+                      if resp.status >= 400:
+                          broken.append((url, resp.status))
+                      else:
+                          print(f"  ✓ {url}")
+              except urllib.error.HTTPError as e:
+                  # Try GET if HEAD is rejected (some servers don't support HEAD)
+                  if e.code == 405:
+                      try:
+                          get_req = urllib.request.Request(url, method="GET")
+                          get_req.add_header("User-Agent", "Mozilla/5.0 (compatible; ZcashDigestBot/1.0)")
+                          with urllib.request.urlopen(get_req, timeout=10) as resp:
+                              if resp.status >= 400:
+                                  broken.append((url, resp.status))
+                              else:
+                                  print(f"  ✓ {url} (GET fallback)")
+                      except Exception as e2:
+                          broken.append((url, str(e2)))
+                  else:
+                      broken.append((url, e.code))
+              except Exception as e:
+                  broken.append((url, str(e)))
+
+          if broken:
+              print(f"⚠️  Found {len(broken)} broken link(s):")
+              for url, status in broken:
+                  print(f"  ✗ {url} -> {status}")
+              # Strip broken links from summary — keep the anchor text but remove the href
+              for url, _ in broken:
+                  # Replace <a href="broken_url">text</a> with just text
+                  summary = re.sub(
+                      rf'<a\s+href=["\']' + re.escape(url) + r'["\'][^>]*>(.*?)</a>',
+                      r'\1',
+                      summary,
+                  )
+              print("Broken links stripped from digest (text preserved).")
+          else:
+              print(f"All {len(urls)} links verified ✓")
+
           # --- Post to Miro ---
           days_offset   = (date.today() - EPOCH).days
           next_y        = START_Y + days_offset * CARD_STEP
