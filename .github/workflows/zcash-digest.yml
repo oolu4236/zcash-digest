@@ -247,17 +247,20 @@ jobs:
           print(f"Day {days_offset} -> y={next_y}, frame height={needed_height}")
 
           patch = json.dumps({"geometry": {"height": needed_height}}).encode()
-          urllib.request.urlopen(urllib.request.Request(
-              f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
-              data=patch,
-              headers={
-                  "Authorization": f"Bearer {MIRO_TOKEN}",
-                  "Content-Type": "application/json",
-                  "Accept": "application/json",
-              },
-              method="PATCH",
-          ))
-          print("Frame fitted.")
+          try:
+              urllib.request.urlopen(urllib.request.Request(
+                  f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
+                  data=patch,
+                  headers={
+                      "Authorization": f"Bearer {MIRO_TOKEN}",
+                      "Content-Type": "application/json",
+                      "Accept": "application/json",
+                  },
+                  method="PATCH",
+              ))
+              print("Frame fitted.")
+          except urllib.error.HTTPError as e:
+              print(f"Frame resize failed ({e.code}) — continuing without resize.")
 
           card_title = f"The Zcash Daily - {today}"
           card_payload = json.dumps({
