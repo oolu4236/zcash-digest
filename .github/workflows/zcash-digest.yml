@@ -206,8 +206,10 @@ jobs:
                       else:
                           print(f"  ✓ {url}")
               except urllib.error.HTTPError as e:
-                  # Try GET if HEAD is rejected (some servers don't support HEAD)
-                  if e.code == 405:
+                  # 403/429 = bot-blocking, not actually broken; 405 = try GET
+                  if e.code in (403, 429):
+                      print(f"  ~ {url} ({e.code} — bot-blocked, keeping link)")
+                  elif e.code == 405:
                       try:
                           get_req = urllib.request.Request(url, method="GET")
                           get_req.add_header("User-Agent", "Mozilla/5.0 (compatible; ZcashDigestBot/1.0)")
