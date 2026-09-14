@@ -31,9 +31,11 @@ jobs:
           TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
         run: |
           python3 - << 'PYEOF'
-          import urllib.request, urllib.error, json, os, textwrap, base64
+          import urllib.request, urllib.error, json, os, re, base64
+          import hashlib, hmac, time, urllib.parse, secrets as sec
           from datetime import datetime, timezone, date
 
+          # ── Config ─────────────────────────────────────────────
           ANTHROPIC_API_KEY     = os.environ["ANTHROPIC_API_KEY"]
           MIRO_TOKEN            = os.environ["MIRO_TOKEN"]
           MIRO_BOARD_ID         = os.environ["MIRO_BOARD_ID"]
@@ -42,6 +44,7 @@ jobs:
           TWITTER_API_SECRET    = os.environ.get("TWITTER_API_SECRET", "")
           TWITTER_ACCESS_TOKEN  = os.environ.get("TWITTER_ACCESS_TOKEN", "")
           TWITTER_ACCESS_SECRET = os.environ.get("TWITTER_ACCESS_SECRET", "")
+
           FRAME_ID   = "3458764675294246557"
           EPOCH      = date(2026, 6, 10)
           CARD_WIDTH = 600
@@ -54,7 +57,7 @@ jobs:
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
           today_iso = date.today().isoformat()
 
-          # --- Generate or use custom digest ---
+          # ── Generate or use custom digest ──────────────────────
           custom = os.environ.get("CUSTOM_CONTENT", "").strip()
           if custom:
               summary = custom
@@ -189,8 +192,7 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
-          # --- Verify all links ---
-          import re
+          # ── Verify all links ───────────────────────────────────
           print("Verifying links...")
           urls = re.findall(r'href=["\']([^"\']+)["\']', summary)
           broken = []
@@ -206,7 +208,6 @@ jobs:
                       else:
                           print(f"  ✓ {url}")
               except urllib.error.HTTPError as e:
-                  # 403/429 = bot-blocking, not actually broken; 405 = try GET
                   if e.code in (403, 429):
                       print(f"  ~ {url} ({e.code} — bot-blocked, keeping link)")
                   elif e.code == 405:
@@ -229,9 +230,7 @@ jobs:
               print(f"⚠️  Found {len(broken)} broken link(s):")
               for url, status in broken:
                   print(f"  ✗ {url} -> {status}")
-              # Strip broken links from summary — keep the anchor text but remove the href
               for url, _ in broken:
-                  # Replace <a href="broken_url">text</a> with just text
                   summary = re.sub(
                       rf'<a\s+href=["\']' + re.escape(url) + r'["\'][^>]*>(.*?)</a>',
                       r'\1',
@@ -241,15 +240,15 @@ jobs:
           else:
               print(f"All {len(urls)} links verified ✓")
 
-          # --- Post to Miro ---
+          # ── Post to Miro ───────────────────────────────────────
           days_offset   = (date.today() - EPOCH).days
           next_y        = START_Y + days_offset * CARD_STEP
           needed_height = next_y + 150
 
           print(f"Day {days_offset} -> y={next_y}, frame height={needed_height}")
 
-          patch = json.dumps({"geometry": {"height": needed_height}}).encode()
           try:
+              patch = json.dumps({"geometry": {"height": needed_height}}).encode()
               urllib.request.urlopen(urllib.request.Request(
                   f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
                   data=patch,
@@ -290,7 +289,7 @@ jobs:
           except urllib.error.HTTPError as e:
               print(f"Miro card error ({e.code}) — continuing to log and tweet.")
 
-          # --- Update log.json ---
+          # ── Update log.json ────────────────────────────────────
           print("Updating log.json...")
           gh_api = "https://api.github.com"
           gh_headers = {
@@ -341,10 +340,8 @@ jobs:
           ))
           print(f"log.json updated ({len(log_entries)} entries).")
 
-          # --- Post to Twitter/X ---
+          # ── Post to Twitter/X ──────────────────────────────────
           if TWITTER_API_KEY and TWITTER_ACCESS_TOKEN:
-              import hashlib, hmac, time, urllib.parse, secrets as sec
-
               print("Generating tweet...")
               tweet_prompt = (
                   f"Condense this HTML digest into a single tweet (max 280 chars). "
@@ -388,10 +385,9 @@ jobs:
                       f"{urllib.parse.quote(TWITTER_API_SECRET, safe='')}"
                       f"&{urllib.parse.quote(TWITTER_ACCESS_SECRET, safe='')}"
                   )
-                  sig = base64.b64encode(
+                  return base64.b64encode(
                       hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()
                   ).decode()
-                  return sig
 
               tw_url = "https://api.x.com/2/tweets"
               oauth_params = {
