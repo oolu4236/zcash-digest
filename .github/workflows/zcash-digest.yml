@@ -288,8 +288,7 @@ jobs:
                   miro_card_id = result.get("id")
                   print(f"Card posted: {miro_card_id}")
           except urllib.error.HTTPError as e:
-              print(f"Miro error {e.code}: {e.read().decode()}")
-              raise
+              print(f"Miro card error ({e.code}) — continuing to log and tweet.")
 
           # --- Update log.json ---
           print("Updating log.json...")
