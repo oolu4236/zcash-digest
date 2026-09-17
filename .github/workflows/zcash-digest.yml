@@ -345,9 +345,11 @@ jobs:
               print("Generating tweet...")
               tweet_prompt = (
                   f"Condense this HTML digest into a single tweet (max 280 chars). "
-                  f"Format: one-line hook, then 2-3 bullet points using • as bullet, "
-                  f"end with the forum thread URL for the top story. "
-                  f"No hashtags except #Zcash. No emojis. Sharp and editorial.\n\n{summary}"
+                  f"Write it as a voiced, human take — not a bullet-point summary. "
+                  f"Use \\n\\n (double newline) between distinct thoughts so Twitter renders line breaks. "
+                  f"End with the forum thread URL on its own line. "
+                  f"No hashtags except #Zcash. No emojis. Sharp and editorial. "
+                  f"CRITICAL: The output MUST contain literal newline characters (\\n\\n) between paragraphs, not spaces.\n\n{summary}"
               )
               tweet_payload = json.dumps({
                   "model": "claude-haiku-4-5-20251001",
