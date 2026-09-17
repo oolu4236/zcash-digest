@@ -343,12 +343,13 @@ jobs:
           # ── Post to Twitter/X ──────────────────────────────────
           if TWITTER_API_KEY and TWITTER_ACCESS_TOKEN:
               print("Generating tweet...")
+              forum_url = "https://forum.zcashcommunity.com/t/the-zcash-daily/57219"
               tweet_prompt = (
-                  f"Condense this HTML digest into a single tweet (max 280 chars). "
+                  f"Condense this HTML digest into tweet text (max 230 chars — the URL is added separately). "
                   f"Write it as a voiced, human take — not a bullet-point summary. "
                   f"Use \\n\\n (double newline) between distinct thoughts so Twitter renders line breaks. "
-                  f"End with the forum thread URL on its own line. "
                   f"No hashtags except #Zcash. No emojis. Sharp and editorial. "
+                  f"Do NOT include any URL in your output — just the text. "
                   f"CRITICAL: The output MUST contain literal newline characters (\\n\\n) between paragraphs, not spaces.\n\n{summary}"
               )
               tweet_payload = json.dumps({
@@ -369,8 +370,10 @@ jobs:
               with urllib.request.urlopen(tweet_req) as res:
                   tweet_data = json.loads(res.read())
               tweet_text = tweet_data["content"][0]["text"].strip()
-              if len(tweet_text) > 280:
-                  tweet_text = tweet_text[:277] + "..."
+              max_text = 280 - len(forum_url) - 2  # 2 for \n\n before URL
+              if len(tweet_text) > max_text:
+                  tweet_text = tweet_text[:max_text - 3] + "..."
+              tweet_text = f"{tweet_text}\n\n{forum_url}"
               print(f"Tweet ({len(tweet_text)} chars): {tweet_text}")
 
               # OAuth 1.0a signature
