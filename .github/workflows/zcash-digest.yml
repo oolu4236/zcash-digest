@@ -142,8 +142,8 @@ jobs:
                   f"\n\nHTML structure with <br> between paragraphs: "
                   f"<h3>🛡️ The Zcash Daily — {today}</h3><br> "
                   f"[paragraphs in <p> tags separated by <br>] "
-                  f"End with: <br><p><em>📣 We're experimenting with the voice and format of this digest — what's landing? What's not? "
-                  f"Reply here or tell us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
+                  f"End with: <br><p><em>📣 Never miss a digest — click the 🔔 notification bell on the right to get alerted when a new one drops. "
+                  f"And follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
                   f"\n\nReturn ONLY the HTML. No markdown, no code fences."
               )
 
