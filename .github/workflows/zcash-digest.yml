@@ -1,4 +1,4 @@
-name: Zcash Daily Digest -> Miro
+name: Zcash Daily Digest -> Notion
 
 on:
   schedule:
@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Fetch Zcash forum and summarize and post to Miro
+      - name: Fetch Zcash forum and summarize and post to Notion
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          MIRO_TOKEN: ${{ secrets.MIRO_TOKEN }}
-          MIRO_BOARD_ID: ${{ secrets.MIRO_BOARD_ID }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PAGE_ID: ${{ secrets.NOTION_PAGE_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CUSTOM_CONTENT: ${{ inputs.custom_content }}
           TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
@@ -37,19 +37,14 @@ jobs:
 
           # ── Config ─────────────────────────────────────────────
           ANTHROPIC_API_KEY     = os.environ["ANTHROPIC_API_KEY"]
-          MIRO_TOKEN            = os.environ["MIRO_TOKEN"]
-          MIRO_BOARD_ID         = os.environ["MIRO_BOARD_ID"]
+          NOTION_TOKEN          = os.environ["NOTION_TOKEN"]
+          NOTION_PAGE_ID        = os.environ["NOTION_PAGE_ID"]
           GITHUB_TOKEN          = os.environ["GITHUB_TOKEN"]
           TWITTER_API_KEY       = os.environ.get("TWITTER_API_KEY", "")
           TWITTER_API_SECRET    = os.environ.get("TWITTER_API_SECRET", "")
           TWITTER_ACCESS_TOKEN  = os.environ.get("TWITTER_ACCESS_TOKEN", "")
           TWITTER_ACCESS_SECRET = os.environ.get("TWITTER_ACCESS_SECRET", "")
 
-          FRAME_ID   = "3458764675294246557"
-          EPOCH      = date(2026, 6, 10)
-          CARD_WIDTH = 600
-          CARD_STEP  = 80
-          START_Y    = 200
           REPO       = "oolu4236/zcash-digest"
           LOG_PATH   = "log.json"
           LOG_BRANCH = "gh-pages"
@@ -240,54 +235,76 @@ jobs:
           else:
               print(f"All {len(urls)} links verified ✓")
 
-          # ── Post to Miro ───────────────────────────────────────
-          days_offset   = (date.today() - EPOCH).days
-          next_y        = START_Y + days_offset * CARD_STEP
-          needed_height = next_y + 150
-
-          print(f"Day {days_offset} -> y={next_y}, frame height={needed_height}")
-
-          try:
-              patch = json.dumps({"geometry": {"height": needed_height}}).encode()
-              urllib.request.urlopen(urllib.request.Request(
-                  f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/frames/{FRAME_ID}",
-                  data=patch,
-                  headers={
-                      "Authorization": f"Bearer {MIRO_TOKEN}",
-                      "Content-Type": "application/json",
-                      "Accept": "application/json",
-                  },
-                  method="PATCH",
-              ))
-              print("Frame fitted.")
-          except urllib.error.HTTPError as e:
-              print(f"Frame resize failed ({e.code}) — continuing without resize.")
-
+          # ── Post to Notion ──────────────────────────────────────
           card_title = f"The Zcash Daily - {today}"
-          card_payload = json.dumps({
-              "data": {"title": card_title, "description": summary},
-              "geometry": {"width": CARD_WIDTH},
-              "position": {"x": 400, "y": next_y, "origin": "center"},
-              "parent": {"id": FRAME_ID},
+          notion_page_id = None
+
+          # Convert HTML to Notion blocks
+          def html_to_notion_blocks(html):
+              """Convert digest HTML to Notion block children."""
+              blocks = []
+              # Extract paragraphs
+              paragraphs = re.findall(r'<p>(.*?)</p>', html, re.DOTALL)
+              for p in paragraphs:
+                  # Convert <a href="...">text</a> to Notion rich text with links
+                  rich_text = []
+                  pos = 0
+                  for m in re.finditer(r'<a\s+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', p):
+                      # Text before link
+                      before = re.sub(r'<[^>]+>', '', p[pos:m.start()])
+                      if before:
+                          rich_text.append({"type": "text", "text": {"content": before}})
+                      # Link
+                      link_text = re.sub(r'<[^>]+>', '', m.group(2))
+                      rich_text.append({
+                          "type": "text",
+                          "text": {"content": link_text, "link": {"url": m.group(1)}},
+                          "annotations": {"bold": False, "italic": False, "underline": True},
+                      })
+                      pos = m.end()
+                  # Remaining text after last link
+                  after = re.sub(r'<[^>]+>', '', p[pos:])
+                  if after:
+                      rich_text.append({"type": "text", "text": {"content": after}})
+                  if rich_text:
+                      blocks.append({
+                          "object": "block",
+                          "type": "paragraph",
+                          "paragraph": {"rich_text": rich_text},
+                      })
+              return blocks
+
+          # Extract title from h3 if present
+          h3_match = re.search(r'<h3>(.*?)</h3>', summary)
+          page_title = re.sub(r'<[^>]+>', '', h3_match.group(1)) if h3_match else card_title
+
+          blocks = html_to_notion_blocks(summary)
+
+          notion_payload = json.dumps({
+              "parent": {"page_id": NOTION_PAGE_ID},
+              "properties": {
+                  "title": [{"text": {"content": page_title}}],
+              },
+              "children": blocks,
           }).encode()
 
-          miro_card_id = None
           try:
               with urllib.request.urlopen(urllib.request.Request(
-                  f"https://api.miro.com/v2/boards/{MIRO_BOARD_ID}/cards",
-                  data=card_payload,
+                  "https://api.notion.com/v1/pages",
+                  data=notion_payload,
                   headers={
-                      "Authorization": f"Bearer {MIRO_TOKEN}",
+                      "Authorization": f"Bearer {NOTION_TOKEN}",
                       "Content-Type": "application/json",
-                      "Accept": "application/json",
+                      "Notion-Version": "2022-06-28",
                   },
                   method="POST",
               )) as res:
                   result = json.loads(res.read())
-                  miro_card_id = result.get("id")
-                  print(f"Card posted: {miro_card_id}")
+                  notion_page_id = result.get("id")
+                  print(f"Notion page created: {notion_page_id}")
           except urllib.error.HTTPError as e:
-              print(f"Miro card error ({e.code}) — continuing to log and tweet.")
+              body = e.read().decode()
+              print(f"Notion error ({e.code}): {body}")
 
           # ── Update log.json ────────────────────────────────────
           print("Updating log.json...")
@@ -319,7 +336,7 @@ jobs:
               "date": today_iso,
               "title": card_title,
               "content": summary,
-              "miro_card_id": miro_card_id,
+              "notion_page_id": notion_page_id,
           })
 
           put_body = {
