@@ -187,6 +187,83 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
+          # ── Fact-check claims ────────────────────────────────
+          print("Fact-checking claims...")
+          fc_prompt = (
+              f"You are a fact-checker for a Zcash daily digest. "
+              f"Read the digest below and identify every factual claim — numbers, dates, prices, "
+              f"names, titles, percentages, events, attributions. "
+              f"Use web search to verify each claim against primary sources. "
+              f"\n\nFor each claim, report: "
+              f"- ✅ VERIFIED: [claim] — [source] "
+              f"- ❌ WRONG: [claim] — actual fact is [X] — [source] "
+              f"- ⚠️ UNVERIFIABLE: [claim] — could not find a primary source "
+              f"\n\nAfter the checklist, if any claims are WRONG, output a corrected version of the "
+              f"full digest HTML with fixes applied. If all claims check out, output ONLY the word PASS. "
+              f"\n\nDo NOT change voice, structure, or add new content — only fix factual errors. "
+              f"\n\n<digest>\n{summary}\n</digest>"
+          )
+
+          fc_messages = [{"role": "user", "content": fc_prompt}]
+          fc_summary = ""
+
+          for fc_attempt in range(6):
+              print(f"  Fact-check turn {fc_attempt + 1}...")
+              fc_payload = json.dumps({
+                  "model": "claude-sonnet-4-6",
+                  "max_tokens": 6000,
+                  "tools": tools,
+                  "messages": fc_messages,
+              }).encode()
+              fc_req = urllib.request.Request(
+                  "https://api.anthropic.com/v1/messages",
+                  data=fc_payload,
+                  headers={
+                      "Content-Type": "application/json",
+                      "x-api-key": ANTHROPIC_API_KEY,
+                      "anthropic-version": "2023-06-01",
+                      "anthropic-beta": "web-search-2025-03-05",
+                  },
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(fc_req) as res:
+                      fc_data = json.loads(res.read())
+              except urllib.error.HTTPError as fc_err:
+                  print(f"  Fact-check API error {fc_err.code}: {fc_err.read().decode()}")
+                  break
+              fc_messages.append({"role": "assistant", "content": fc_data["content"]})
+              if fc_data["stop_reason"] == "end_turn":
+                  fc_summary = " ".join(
+                      b["text"] for b in fc_data["content"] if b["type"] == "text"
+                  ).strip()
+                  break
+              if fc_data["stop_reason"] == "tool_use":
+                  fc_messages.append({"role": "user", "content": [
+                      {"type": "tool_result", "tool_use_id": b["id"], "content": b.get("output", "")}
+                      for b in fc_data["content"] if b["type"] == "tool_use"
+                  ]})
+
+          if fc_summary:
+              if "PASS" in fc_summary and len(fc_summary) < 20:
+                  print("  All facts verified ✅")
+              elif "❌" in fc_summary:
+                  # Extract corrected HTML from fact-check response
+                  corrected = re.search(r'<h3>.*</p>\s*$', fc_summary, re.DOTALL)
+                  if corrected:
+                      summary = corrected.group(0).strip()
+                      print("  Facts corrected and digest updated ✏️")
+                  else:
+                      print("  ❌ found but could not extract corrected HTML — using original")
+                  # Print the full fact-check report
+                  for line in fc_summary.split("\n"):
+                      if line.strip().startswith(("✅", "❌", "⚠️")):
+                          print(f"  {line.strip()}")
+              else:
+                  print("  Fact-check completed (no errors flagged)")
+          else:
+              print("  Fact-check skipped (no response)")
+
           # ── Verify all links ───────────────────────────────────
           print("Verifying links...")
           urls = re.findall(r'href=["\']([^"\']+)["\']', summary)
