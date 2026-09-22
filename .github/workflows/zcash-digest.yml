@@ -79,8 +79,13 @@ jobs:
                       file_data = json.loads(res.read())
                       entries = json.loads(base64.b64decode(file_data["content"]))
                       if entries:
-                          last_digest = entries[-1].get("content", "")
-                          print(f"  Last digest: {entries[-1].get('date', '?')}")
+                          # Only use digests from previous days for repetition check
+                          prev_day = [e for e in entries if e.get("date") != today_iso]
+                          if prev_day:
+                              last_digest = prev_day[-1].get("content", "")
+                              print(f"  Last digest (prev day): {prev_day[-1].get('date', '?')}")
+                          else:
+                              print("  No previous-day digest found")
               except Exception as e:
                   print(f"  Could not fetch last digest: {e}")
 
