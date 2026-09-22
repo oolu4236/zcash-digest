@@ -9,6 +9,11 @@ on:
         description: 'Optional: paste custom HTML digest content to skip auto-generation'
         required: false
         type: string
+      skip_tweet:
+        description: 'Skip posting to Twitter/X'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -29,6 +34,7 @@ jobs:
           TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
           TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
           TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
+          SKIP_TWEET: ${{ inputs.skip_tweet }}
         run: |
           python3 - << 'PYEOF'
           import urllib.request, urllib.error, json, os, re, base64
@@ -443,7 +449,8 @@ jobs:
           print(f"log.json updated ({len(log_entries)} entries).")
 
           # ── Post to Twitter/X ──────────────────────────────────
-          if TWITTER_API_KEY and TWITTER_ACCESS_TOKEN:
+          skip_tweet = os.environ.get("SKIP_TWEET", "").lower() in ("true", "1", "yes")
+          if TWITTER_API_KEY and TWITTER_ACCESS_TOKEN and not skip_tweet:
               print("Generating tweet...")
               forum_url = "https://forum.zcashcommunity.com/t/the-zcash-daily/57219"
               tweet_prompt = (
