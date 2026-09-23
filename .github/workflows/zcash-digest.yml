@@ -59,6 +59,7 @@ jobs:
           today_iso = date.today().isoformat()
 
           # ── Generate or use custom digest ──────────────────────
+          tools = [{"type": "web_search_20250305", "name": "web_search"}]
           custom = os.environ.get("CUSTOM_CONTENT", "").strip()
           if custom:
               summary = custom
