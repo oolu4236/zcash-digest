@@ -94,19 +94,22 @@ jobs:
               if weekday == "Monday":
                   day_theme = (
                       "THEME: Weekend recap. Cover Friday through Monday. "
-                      "Broader lens — what shifted over the weekend?"
+                      "Broader lens — what shifted over the weekend? "
+                      "ALSO cover any breaking news from the last 24 hours."
                   )
               elif weekday == "Wednesday":
                   day_theme = (
-                      "THEME: Builder spotlight. Pick ONE grant application, tool, or project "
-                      "and go deeper on it — why it matters, what's interesting, what questions it raises. "
-                      "Do not list multiple projects surface-level."
+                      "THEME: Builder spotlight. Dedicate ONE paragraph to a grant application, tool, or project "
+                      "— why it matters, what questions it raises. "
+                      "But FIRST cover what happened in the last 24 hours in the other paragraphs. "
+                      "The spotlight is the flavor, not the whole meal."
                   )
               elif weekday == "Friday":
                   day_theme = (
-                      "THEME: The week's undercurrent. What is the thing nobody is talking about "
-                      "but should be? Step back from the headlines and surface something deeper — "
-                      "a pattern, a tension, a question the community is avoiding."
+                      "THEME: The week's undercurrent. Dedicate ONE paragraph to something nobody is talking about "
+                      "but should be — a pattern, a tension, a question the community is avoiding. "
+                      "But FIRST cover what happened in the last 24 hours in the other paragraphs. "
+                      "The undercurrent is the closer, not the opener."
                   )
               else:
                   day_theme = (
