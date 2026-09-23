@@ -95,14 +95,30 @@ jobs:
                   day_theme = (
                       "THEME: Weekend recap. Cover Friday through Monday. "
                       "Broader lens — what shifted over the weekend? "
-                      "ALSO cover any breaking news from the last 24 hours."
+                      "ALSO cover any breaking news from the last 24 hours. "
+                      "If any notable GitHub PRs were merged or opened over the weekend, mention them."
+                  )
+              elif weekday == "Tuesday":
+                  day_theme = (
+                      "THEME: Open + community pulse. Cover what's genuinely new in the last 24 hours. "
+                      "ALSO check forum threads for heated debates, disagreements, drama, or surprising takes. "
+                      "If a thread has 10+ replies or strong pushback, that's worth surfacing — "
+                      "quote the sharpest voices directly. Community friction is content."
                   )
               elif weekday == "Wednesday":
                   day_theme = (
-                      "THEME: Builder spotlight. Dedicate ONE paragraph to a grant application, tool, or project "
-                      "— why it matters, what questions it raises. "
+                      "THEME: Builder spotlight. Dedicate ONE paragraph to a notable GitHub PR, "
+                      "grant application, tool, or project — why it matters, what questions it raises. "
+                      "Check recent PRs across zcash repos (zebra, librustzcash, orchard, zcash) for anything interesting. "
                       "But FIRST cover what happened in the last 24 hours in the other paragraphs. "
                       "The spotlight is the flavor, not the whole meal."
+                  )
+              elif weekday == "Thursday":
+                  day_theme = (
+                      "THEME: Open + PRs. Cover what's genuinely new in the last 24 hours. "
+                      "Dedicate at least one mention to interesting GitHub activity — merged PRs, "
+                      "new issues, release candidates across Zcash repos. "
+                      "Engineering momentum (or lack of it) is a signal readers care about."
                   )
               elif weekday == "Friday":
                   day_theme = (
@@ -120,14 +136,15 @@ jobs:
                   )
 
               print(f"Fetching Zcash forum ({weekday})...")
-              weekday_name = datetime.now(timezone.utc).strftime("%A")
               prompt = (
-                  f"Today is {today}. The day of the week is {weekday_name}. "
+                  f"Today is {today}. The day of the week is {weekday}. "
                   f"The digest title MUST be: 🛡️ The Zcash Daily — {today}. Do NOT use any other date. "
                   f"\n\n{day_theme}"
                   f"\n\nSOURCES — search broadly, not just the forum: "
-                  f"1) forum.zcashcommunity.com for new threads and replies. "
-                  f"2) GitHub activity across Zcash repos (zcash, librustzcash, zebra, orchard) — new PRs, merged code, releases. "
+                  f"1) forum.zcashcommunity.com — new threads, replies, AND heated discussions. "
+                  f"Look for threads with many replies, strong disagreements, or community drama. "
+                  f"2) GitHub PRs across Zcash repos (ZcashFoundation/zebra, zcash/librustzcash, zcash/orchard, zcash/zcash) "
+                  f"— recently merged PRs, new PRs, release candidates. Link directly to PR URLs. "
                   f"3) Crypto news coverage about Zcash — media articles, regulatory developments. "
                   f"4) X/Twitter posts from core Zcash contributors and developers. "
                   f"5) On-chain signals — shielded pool percentage, transaction volume, hashrate shifts. "
@@ -212,6 +229,66 @@ jobs:
               raise Exception("No summary from Claude.")
           print("Summary ready.")
 
+          # ── Validate digest structure ───────────────────────
+          def validate_digest(html):
+              """Check link count and paragraph length requirements."""
+              issues = []
+              paras = re.findall(r'<p>(.*?)</p>', html, re.DOTALL)
+              content_paras = [p for p in paras if 'Never miss a digest' not in p]
+              for i, p in enumerate(content_paras):
+                  link_count = len(re.findall(r'<a\s+href', p))
+                  clean = re.sub(r'<[^>]+>', '', p)
+                  if link_count < 2:
+                      issues.append(f"P{i+1} has {link_count} links (need 2+)")
+                  if len(clean) > 600:
+                      issues.append(f"P{i+1} is {len(clean)} chars (max 600)")
+              return issues
+
+          issues = validate_digest(summary)
+          if issues and not custom:
+              print(f"  Digest validation failed: {'; '.join(issues)}")
+              print("  Regenerating with stricter instructions...")
+              retry_prompt = (
+                  f"The digest you wrote has structural problems: {'; '.join(issues)}. "
+                  f"Rewrite the SAME content but fix these issues. "
+                  f"Every content paragraph MUST have at least 2 inline <a href='URL'>text</a> links. "
+                  f"Every content paragraph MUST be under 600 characters of plain text. "
+                  f"Return ONLY the corrected HTML."
+              )
+              messages.append({"role": "user", "content": retry_prompt})
+              retry_payload = json.dumps({
+                  "model": "claude-sonnet-4-6",
+                  "max_tokens": 4000,
+                  "tools": tools,
+                  "messages": messages,
+              }).encode()
+              retry_req = urllib.request.Request(
+                  "https://api.anthropic.com/v1/messages",
+                  data=retry_payload,
+                  headers={
+                      "Content-Type": "application/json",
+                      "x-api-key": ANTHROPIC_API_KEY,
+                      "anthropic-version": "2023-06-01",
+                      "anthropic-beta": "web-search-2025-03-05",
+                  },
+                  method="POST",
+              )
+              try:
+                  with urllib.request.urlopen(retry_req) as res:
+                      retry_data = json.loads(res.read())
+                  retry_text = " ".join(
+                      b["text"] for b in retry_data["content"] if b["type"] == "text"
+                  ).strip()
+                  if retry_text and "<p>" in retry_text:
+                      summary = retry_text
+                      print("  Retry succeeded ✓")
+                  else:
+                      print("  Retry produced no valid HTML — using original")
+              except Exception as retry_err:
+                  print(f"  Retry failed: {retry_err} — using original")
+          elif not issues:
+              print("  Digest structure validated ✓")
+
           # ── Fact-check claims ────────────────────────────────
           print("Fact-checking claims...")
           fc_prompt = (
@@ -274,12 +351,18 @@ jobs:
                   print("  All facts verified ✅")
               elif "❌" in fc_summary:
                   # Extract corrected HTML from fact-check response
-                  corrected = re.search(r'<h3>.*</p>\s*$', fc_summary, re.DOTALL)
+                  corrected = re.search(r'(<h3>.*</p>)(?:\s*$)', fc_summary, re.DOTALL)
                   if corrected:
-                      summary = corrected.group(0).strip()
+                      summary = corrected.group(1).strip()
                       print("  Facts corrected and digest updated ✏️")
                   else:
-                      print("  ❌ found but could not extract corrected HTML — using original")
+                      # Fallback: try code fence extraction
+                      fenced = re.search(r'```html?\s*\n(.*?)```', fc_summary, re.DOTALL)
+                      if fenced and '<h3>' in fenced.group(1):
+                          summary = fenced.group(1).strip()
+                          print("  Facts corrected via code fence extraction ✏️")
+                      else:
+                          print("  ❌ found but could not extract corrected HTML — using original")
                   # Print the full fact-check report
                   for line in fc_summary.split("\n"):
                       if line.strip().startswith(("✅", "❌", "⚠️")):
@@ -408,58 +491,8 @@ jobs:
               body = e.read().decode()
               print(f"Notion error ({e.code}): {body}")
 
-          # ── Update log.json ────────────────────────────────────
-          print("Updating log.json...")
-          gh_api = "https://api.github.com"
-          gh_headers = {
-              "Authorization": f"Bearer {GITHUB_TOKEN}",
-              "Accept": "application/vnd.github+json",
-              "X-GitHub-Api-Version": "2022-11-28",
-              "Content-Type": "application/json",
-          }
-
-          log_sha = None
-          log_entries = []
-          try:
-              req = urllib.request.Request(
-                  f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}?ref={LOG_BRANCH}",
-                  headers=gh_headers,
-              )
-              with urllib.request.urlopen(req) as res:
-                  file_data = json.loads(res.read())
-                  log_sha = file_data["sha"]
-                  log_entries = json.loads(base64.b64decode(file_data["content"]))
-          except urllib.error.HTTPError as e:
-              if e.code != 404:
-                  raise
-              print("  log.json not found - will create it.")
-
-          log_entries.append({
-              "date": today_iso,
-              "title": card_title,
-              "content": summary,
-              "notion_page_id": notion_page_id,
-          })
-
-          put_body = {
-              "message": f"digest: {today_iso}",
-              "content": base64.b64encode(
-                  json.dumps(log_entries, indent=2).encode()
-              ).decode(),
-              "branch": LOG_BRANCH,
-          }
-          if log_sha:
-              put_body["sha"] = log_sha
-
-          urllib.request.urlopen(urllib.request.Request(
-              f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}",
-              data=json.dumps(put_body).encode(),
-              headers=gh_headers,
-              method="PUT",
-          ))
-          print(f"log.json updated ({len(log_entries)} entries).")
-
           # ── Post to Twitter/X ──────────────────────────────────
+          tweet_id = None
           skip_tweet = os.environ.get("SKIP_TWEET", "").lower() in ("true", "1", "yes")
           if TWITTER_API_KEY and TWITTER_ACCESS_TOKEN and not skip_tweet:
               print("Generating tweet...")
@@ -545,11 +578,67 @@ jobs:
               try:
                   with urllib.request.urlopen(tw_req) as res:
                       tw_result = json.loads(res.read())
-                      print(f"Tweet posted: {tw_result['data']['id']}")
+                      tweet_id = tw_result['data']['id']
+                      print(f"Tweet posted: {tweet_id}")
               except urllib.error.HTTPError as e:
                   print(f"Twitter error {e.code}: {e.read().decode()}")
           else:
               print("Twitter credentials not set, skipping tweet.")
+
+          # ── Update log.json ────────────────────────────────────
+          print("Updating log.json...")
+          gh_api = "https://api.github.com"
+          gh_headers = {
+              "Authorization": f"Bearer {GITHUB_TOKEN}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+          }
+
+          log_sha = None
+          log_entries = []
+          try:
+              req = urllib.request.Request(
+                  f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}?ref={LOG_BRANCH}",
+                  headers=gh_headers,
+              )
+              with urllib.request.urlopen(req) as res:
+                  file_data = json.loads(res.read())
+                  log_sha = file_data["sha"]
+                  log_entries = json.loads(base64.b64decode(file_data["content"]))
+          except urllib.error.HTTPError as e:
+              if e.code != 404:
+                  raise
+              print("  log.json not found - will create it.")
+
+          # Before appending, remove same-day duplicates
+          log_entries = [e for e in log_entries if e.get("date") != today_iso]
+
+          log_entries.append({
+              "date": today_iso,
+              "title": card_title,
+              "content": summary,
+              "notion_page_id": notion_page_id,
+              "tweet_id": tweet_id,
+          })
+
+          put_body = {
+              "message": f"digest: {today_iso}",
+              "content": base64.b64encode(
+                  json.dumps(log_entries, indent=2).encode()
+              ).decode(),
+              "branch": LOG_BRANCH,
+          }
+          if log_sha:
+              put_body["sha"] = log_sha
+
+          urllib.request.urlopen(urllib.request.Request(
+              f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}",
+              data=json.dumps(put_body).encode(),
+              headers=gh_headers,
+              method="PUT",
+          ))
+          print(f"log.json updated ({len(log_entries)} entries).")
 
           print("Done.")
           PYEOF
