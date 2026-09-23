@@ -115,10 +115,9 @@ jobs:
                   )
               elif weekday == "Thursday":
                   day_theme = (
-                      "THEME: Open + PRs. Cover what's genuinely new in the last 24 hours. "
-                      "Dedicate at least one mention to interesting GitHub activity — merged PRs, "
-                      "new issues, release candidates across Zcash repos. "
-                      "Engineering momentum (or lack of it) is a signal readers care about."
+                      "THEME: Open. Cover what's genuinely new and interesting in the last 24 hours. "
+                      "If nothing meaningful happened, say so in one honest paragraph "
+                      "and explore a single question or observation instead."
                   )
               elif weekday == "Friday":
                   day_theme = (
