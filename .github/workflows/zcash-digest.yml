@@ -176,6 +176,8 @@ jobs:
                   f"A paragraph with zero links is INVALID and will be rejected. "
                   f"Link to the actual source: forum thread URL, news article URL, GitHub PR URL, tweet URL. "
                   f"Use the real URLs you found during web search — do NOT use placeholder or generic URLs. "
+                  f"Anchor text MUST be 2-4 words max — link the name/noun, not the whole sentence. "
+                  f"Good: <a href='URL'>NU7 timeline</a>. Bad: <a href='URL'>the community is debating the NU7 timeline and vote</a>. "
                   f"Example: <a href='https://forum.zcashcommunity.com/t/nu7-timeline/57655'>NU7 timeline</a>. "
                   f"\n\nFORMAT: flowing paragraphs, no rigid sections. "
                   f"Each paragraph focuses on one thread or theme, with sources hyperlinked inline. "
@@ -261,6 +263,7 @@ jobs:
                   f"The digest you wrote has structural problems: {'; '.join(issues)}. "
                   f"Rewrite the SAME content but fix these issues. "
                   f"Every content paragraph MUST have at least 2 inline <a href='URL'>text</a> links. "
+                  f"Anchor text must be 2-4 words max — link the noun/name, not whole clauses. "
                   f"Every content paragraph MUST be under 600 characters of plain text. "
                   f"Return ONLY the corrected HTML."
               )
