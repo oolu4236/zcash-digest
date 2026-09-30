@@ -56,7 +56,7 @@ jobs:
           LOG_BRANCH = "gh-pages"
 
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
-          today_iso = date.today().isoformat()
+          today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
           # ── Generate or use custom digest ──────────────────────
           tools = [{"type": "web_search_20250305", "name": "web_search"}]
