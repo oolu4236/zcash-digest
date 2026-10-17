@@ -1,0 +1,188 @@
+name: Batch Tweet Backfill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  batch-tweet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post missed tweets and update log
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          TWITTER_ACCESS_TOKEN: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          TWITTER_ACCESS_SECRET: ${{ secrets.TWITTER_ACCESS_SECRET }}
+        run: |
+          python3 - << 'PYEOF'
+          import urllib.request, urllib.error, json, os, base64
+          import hashlib, hmac, time, urllib.parse, secrets as sec
+
+          TWITTER_API_KEY       = os.environ["TWITTER_API_KEY"]
+          TWITTER_API_SECRET    = os.environ["TWITTER_API_SECRET"]
+          TWITTER_ACCESS_TOKEN  = os.environ["TWITTER_ACCESS_TOKEN"]
+          TWITTER_ACCESS_SECRET = os.environ["TWITTER_ACCESS_SECRET"]
+          GITHUB_TOKEN          = os.environ["GITHUB_TOKEN"]
+
+          REPO       = "oolu4236/zcash-digest"
+          LOG_PATH   = "log.json"
+          LOG_BRANCH = "gh-pages"
+          FORUM_URL  = "https://forum.zcashcommunity.com/t/the-zcash-daily/57219"
+
+          # Pre-composed tweets (no Anthropic API needed)
+          TWEETS = {
+              "2026-10-07": (
+                  "WINK S-1 filed. Winklevoss ZEC ETF bid #2 flags Orchard vulnerability and shielded AML concerns.\n\n"
+                  "Cachet ships atomic ZSA swaps on testnet. #Zcash"
+              ),
+              "2026-10-08": (
+                  "Native ZEC swaps live on THORChain. BTC→ZEC, no custodian, no KYC.\n\n"
+                  "ZCSH ETF: zero inflows since Sept 22. A whale pulled 1K ZEC off Binance straight to shielded. #Zcash"
+              ),
+              "2026-10-09": (
+                  "70% of ZEC sits in transparent addresses with exposed public keys. Zakura targets Jan 2027 for post-quantum signatures.\n\n"
+                  "The privacy feature is also the quantum shelter. #Zcash"
+              ),
+              "2026-10-12": (
+                  "ZEC +8% on a short squeeze; $4.91M liquidated while ZCSH ETF bleeds $124M.\n\n"
+                  "NU7 on testnet: 25-second blocks, NSM fee recycling. Zebra 7.0.0-rc.0 shipped. Mainnet decision 8 days out. #Zcash"
+              ),
+              "2026-10-13": (
+                  "Yesterday's squeeze reversed. ZEC -8%, $19.9M liquidated.\n\n"
+                  "PGPZ hired its first DC lobbyist. Zakura targets Jan 2027 for quantum-resistant sigs. NU7 mainnet decision Oct 20. #Zcash"
+              ),
+              "2026-10-14": (
+                  "ZEC +6% to $1,264 while ZCSH ETF bleeds $30M/week. Spot recovering; ETF wrapper shrinking.\n\n"
+                  "NU7 crates dropping RC labels. Six days to mainnet decision. #Zcash"
+              ),
+              "2026-10-15": (
+                  "ZEC -13%. Worst in the top 25. CPI 3.7% vs 3.6% forecast; crypto shed $42B. $20M in ZEC liquidations, 88.7% longs.\n\n"
+                  "Five days to NU7 mainnet decision. #Zcash"
+              ),
+              "2026-10-16": (
+                  "ZEC swung 16.6% in one session. ZCSH ETFs took in money for the first time since Sept 22.\n\n"
+                  "The volatility is noise. The utility is compounding: AI payments, FROST custody, viewing keys. #Zcash"
+              ),
+          }
+
+          # OAuth 1.0a signature
+          def oauth_sign(method, url, params):
+              base = "&".join([
+                  method.upper(),
+                  urllib.parse.quote(url, safe=""),
+                  urllib.parse.quote("&".join(
+                      f"{urllib.parse.quote(k, safe='')}={urllib.parse.quote(v, safe='')}"
+                      for k, v in sorted(params.items())
+                  ), safe=""),
+              ])
+              key = (
+                  f"{urllib.parse.quote(TWITTER_API_SECRET, safe='')}"
+                  f"&{urllib.parse.quote(TWITTER_ACCESS_SECRET, safe='')}"
+              )
+              return base64.b64encode(
+                  hmac.new(key.encode(), base.encode(), hashlib.sha1).digest()
+              ).decode()
+
+          def post_tweet(text):
+              tw_url = "https://api.x.com/2/tweets"
+              oauth_params = {
+                  "oauth_consumer_key": TWITTER_API_KEY,
+                  "oauth_nonce": sec.token_hex(16),
+                  "oauth_signature_method": "HMAC-SHA1",
+                  "oauth_timestamp": str(int(time.time())),
+                  "oauth_token": TWITTER_ACCESS_TOKEN,
+                  "oauth_version": "1.0",
+              }
+              oauth_params["oauth_signature"] = oauth_sign("POST", tw_url, oauth_params)
+              auth_header = "OAuth " + ", ".join(
+                  f'{urllib.parse.quote(k, safe="")}="{urllib.parse.quote(v, safe="")}"'
+                  for k, v in sorted(oauth_params.items())
+              )
+              payload = json.dumps({"text": text}).encode()
+              req = urllib.request.Request(
+                  tw_url,
+                  data=payload,
+                  headers={
+                      "Authorization": auth_header,
+                      "Content-Type": "application/json",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(req) as res:
+                  return json.loads(res.read())["data"]["id"]
+
+          # Fetch current log.json
+          gh_api = "https://api.github.com"
+          gh_headers = {
+              "Authorization": f"Bearer {GITHUB_TOKEN}",
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "Content-Type": "application/json",
+          }
+
+          req = urllib.request.Request(
+              f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}?ref={LOG_BRANCH}",
+              headers=gh_headers,
+          )
+          with urllib.request.urlopen(req) as res:
+              file_data = json.loads(res.read())
+              log_sha = file_data["sha"]
+              log_entries = json.loads(base64.b64decode(file_data["content"]))
+
+          print(f"Loaded {len(log_entries)} log entries.")
+
+          # Post tweets for entries with null tweet_id
+          posted = 0
+          for entry in log_entries:
+              date = entry.get("date", "")
+              if date in TWEETS and entry.get("tweet_id") is None:
+                  tweet_body = TWEETS[date]
+                  cta = "Read more 👇"
+                  full_tweet = f"{tweet_body}\n\n{cta}\n{FORUM_URL}"
+
+                  # Ensure under 280 chars
+                  if len(full_tweet) > 280:
+                      max_body = 280 - len(f"\n\n{cta}\n{FORUM_URL}") - 3
+                      tweet_body = tweet_body[:max_body] + "..."
+                      full_tweet = f"{tweet_body}\n\n{cta}\n{FORUM_URL}"
+
+                  try:
+                      tid = post_tweet(full_tweet)
+                      entry["tweet_id"] = tid
+                      posted += 1
+                      print(f"✓ {date}: tweet {tid} ({len(full_tweet)} chars)")
+                  except urllib.error.HTTPError as e:
+                      err = e.read().decode()
+                      print(f"✗ {date}: {e.code} — {err}")
+                  except Exception as e:
+                      print(f"✗ {date}: {e}")
+
+                  # Small delay between tweets to avoid rate limiting
+                  time.sleep(1)
+
+          if posted == 0:
+              print("No tweets to post.")
+          else:
+              # Update log.json with tweet IDs
+              put_body = {
+                  "message": f"backfill: {posted} tweet IDs",
+                  "content": base64.b64encode(
+                      json.dumps(log_entries, indent=2).encode()
+                  ).decode(),
+                  "branch": LOG_BRANCH,
+                  "sha": log_sha,
+              }
+              urllib.request.urlopen(urllib.request.Request(
+                  f"{gh_api}/repos/{REPO}/contents/{LOG_PATH}",
+                  data=json.dumps(put_body).encode(),
+                  headers=gh_headers,
+                  method="PUT",
+              ))
+              print(f"log.json updated with {posted} tweet IDs.")
+
+          print("Done.")
+          PYEOF
