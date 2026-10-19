@@ -67,6 +67,10 @@ jobs:
                   "ZEC swung 16.6% in one session. ZCSH ETFs took in money for the first time since Sept 22.\n\n"
                   "The volatility is noise. The utility is compounding: AI payments, FROST custody, viewing keys. #Zcash"
               ),
+              "2026-10-19": (
+                  "Tomorrow: NU7 mainnet decision. ZEC at $1,140, down 29% from peak. Zakura proposes per-swap viewing keys for quantum-safe NEAR swaps.\n\n"
+                  "22,309 ZEC faces Sprout freeze. Zcon7 closes tomorrow. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
