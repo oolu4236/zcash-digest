@@ -71,6 +71,10 @@ jobs:
                   "Tomorrow: NU7 mainnet decision. ZEC at $1,140, down 29% from peak. Zakura proposes per-swap viewing keys for quantum-safe NEAR swaps.\n\n"
                   "22,309 ZEC faces Sprout freeze. Zcon7 closes tomorrow. #Zcash"
               ),
+              "2026-10-20": (
+                  "NU7 mainnet decision day. Devs review testnet, set Nov 5 activation height. ZEC at $1,140, down 20.9% in 30 days.\n\n"
+                  "ZEC vs HYPE for #10 market cap. Zcon7 closed. Zcash turns 10 in 8 days. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
