@@ -75,6 +75,11 @@ jobs:
                   "NU7 mainnet decision day. Devs review testnet, set Nov 5 activation height. ZEC at $1,140, down 20.9% in 30 days.\n\n"
                   "ZEC vs HYPE for #10 market cap. Zcon7 closed. Zcash turns 10 in 8 days. #Zcash"
               ),
+              "2026-10-21": (
+                  "NU7 height locked: block 3,543,405. Nov 5 confirmed. ZEC +12%.\n\n"
+                  "Zebra, Zallet, Ledger all bumping to NU7 crate versions. The plumbing before the upgrade.\n\n"
+                  "Zcon7 in 6 days. Zcash turns 10 Oct 28. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
