@@ -80,6 +80,11 @@ jobs:
                   "Zebra, Zallet, Ledger all bumping to NU7 crate versions. The plumbing before the upgrade.\n\n"
                   "Zcon7 in 6 days. Zcash turns 10 Oct 28. #Zcash"
               ),
+              "2026-10-22": (
+                  "ZEC at $1,300+ after yesterday's 12% rally. $3.41M in shorts liquidated.\n\n"
+                  "Grayscale expanded in-kind ZEC swaps across 10 funds. 22,309 ZEC in Sprout has 14 days before NU7 freezes it.\n\n"
+                  "Zcon7 in 5 days. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
