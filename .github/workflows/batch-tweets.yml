@@ -85,6 +85,10 @@ jobs:
                   "Grayscale expanded in-kind ZEC swaps across 10 funds. 22,309 ZEC in Sprout has 14 days before NU7 freezes it.\n\n"
                   "Zcon7 in 5 days. #Zcash"
               ),
+              "2026-10-27": (
+                  "ZCSH ETF: $41.1M inflows last week, reversing 3 weeks of withdrawals. David Campbell named new ZF Executive Director.\n\n"
+                  "Zcon7 starts today in Canc\u00fan. Zcash turns 10 tomorrow. Nine days to NU7 mainnet. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
