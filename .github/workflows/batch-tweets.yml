@@ -89,6 +89,11 @@ jobs:
                   "Sean Bowe proposes ending ZCG\u2019s 8% block subsidy. $125M in the treasury. ZODL\u2019s Swihart calls it a \u2018half measure.\u2019\n\n"
                   "Zcon7 opens in Canc\u00fan. Zcash turns 10 tomorrow. The co-founders are clashing. #Zcash"
               ),
+              "2026-10-28": (
+                  "Block zero, 10 years ago today. ZEC $1,356, rank #9.\n\n"
+                  "Bowe wrote the circuit that made shielded txs work. Now he wants to cut ZCG\u2019s 8% subsidy. Winklevoss: \u2018end the USAID of Zcash.\u2019\n\n"
+                  "4 proposals. $125M. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
