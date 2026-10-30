@@ -99,6 +99,10 @@ jobs:
                   "Zcon7 closes. ZCG debate hit mainstream press. ZCSH ETF: 7 straight inflow days, $757M.\n\n"
                   "NU7 in 7 days. #Zcash"
               ),
+              "2026-10-30": (
+                  "ZCG counter-offers: redirect 98K ZEC ($124M) to block rewards, keep $70M. Mumtaz: \u2018nowhere near good enough.\u2019\n\n"
+                  "ZCSH ETF: $14.8M inflow, biggest in weeks. NU7 in 6 days. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
