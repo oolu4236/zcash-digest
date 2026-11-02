@@ -103,6 +103,14 @@ jobs:
                   "ZCG counter-offers: redirect 98K ZEC ($124M) to block rewards, keep $70M. Mumtaz: \u2018nowhere near good enough.\u2019\n\n"
                   "ZCSH ETF: $14.8M inflow, biggest in weeks. NU7 in 6 days. #Zcash"
               ),
+              "2026-10-31": (
+                  "ZEC $1,280 after yesterday\u2019s 6% drop. ZCSH ETF: 8 straight inflow days.\n\n"
+                  "Swihart wants the full $300M dev fund killed early. Four proposals, zero binding vote. #Zcash"
+              ),
+              "2026-11-02": (
+                  "3 days to NU7. Zondax Ledger app dies at activation \u2014 V4 txs only. Move your shielded ZEC now.\n\n"
+                  "8 retroactive grant apps hit the forum. One researcher claims $300K for two critical Zebra bugs. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
