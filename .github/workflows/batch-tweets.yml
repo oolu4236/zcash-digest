@@ -111,6 +111,10 @@ jobs:
                   "3 days to NU7. Zondax Ledger app dies at activation \u2014 V4 txs only. Move your shielded ZEC now.\n\n"
                   "8 retroactive grant apps hit the forum. One researcher claims $300K for two critical Zebra bugs. #Zcash"
               ),
+              "2026-11-03": (
+                  "ZEC $1,198, volume doubled to $924M while price fell 3%. Liquidation-driven, not demand.\n\n"
+                  "ZCG taper proposal withdrawn. $455K ZSA grant after 98.6% voted no. ZAP thread: 253 replies. NU7 in 57 hours. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
