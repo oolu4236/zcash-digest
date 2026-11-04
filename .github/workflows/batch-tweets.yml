@@ -115,6 +115,10 @@ jobs:
                   "ZEC $1,198, volume doubled to $924M while price fell 3%. Liquidation-driven, not demand.\n\n"
                   "ZCG taper proposal withdrawn. $455K ZSA grant after 98.6% voted no. ZAP thread: 253 replies. NU7 in 57 hours. #Zcash"
               ),
+              "2026-11-04": (
+                  "ZEC +7% to $1,286. NU7 activates tomorrow \u2014 block 3,543,405. Zebra 7.0.0 minimum. ~24 hours to upgrade.\n\n"
+                  "arya2 filed 2 ZIPs + 4 Zebra PRs in 48 hrs. ZIP 68 wants programmable timelocks \u2014 Lightning on Zcash. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
