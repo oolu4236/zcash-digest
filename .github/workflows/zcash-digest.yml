@@ -191,7 +191,8 @@ jobs:
                   f"<h3>🛡️ The Zcash Daily — {today}</h3><br> "
                   f"[paragraphs in <p> tags separated by <br>] "
                   f"End with: <br><p><em>📣 Never miss a digest — click the 🔔 notification bell on the right to get alerted when a new one drops. "
-                  f"And follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a></em></p> "
+                  f"And follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a><br>"
+                  f"🛡️ Tip the digest (shielded): <code>u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2</code></em></p> "
                   f"\n\nReturn ONLY the HTML. No markdown, no code fences."
               )
 
@@ -431,6 +432,22 @@ jobs:
               print("Broken links stripped from digest (text preserved).")
           else:
               print(f"All {len(urls)} links verified ✓")
+
+          # ── Ensure CTA is always present ─────────────────────────
+          CTA_HTML = (
+              "<p><em>📣 Never miss a digest — click the 🔔 notification bell "
+              "on the right to get alerted when a new one drops. "
+              "And follow us on X: <a href='https://x.com/thezcashdaily'>"
+              "@thezcashdaily</a><br>"
+              "🛡️ Tip the digest (shielded): <code>"
+              "u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2"
+              "</code></em></p>"
+          )
+          if "Never miss a digest" not in summary:
+              summary = summary.rstrip() + "<br>\n\n" + CTA_HTML
+              print("CTA was missing — appended ✓")
+          else:
+              print("CTA present ✓")
 
           # ── Post to Notion ──────────────────────────────────────
           card_title = f"The Zcash Daily - {today}"
