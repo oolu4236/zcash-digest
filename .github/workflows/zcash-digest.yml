@@ -198,7 +198,8 @@ jobs:
                   f"[paragraphs in <p> tags separated by <br>] "
                   f"End with: <br><p><em>📣 Never miss a digest — click the 🔔 notification bell on the right to get alerted when a new one drops. "
                   f"And follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a><br>"
-                  f"🛡️ Tip the digest (shielded): <code>u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2</code></em></p> "
+                  f"🛡️ Tip the digest (shielded): <code>u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2</code><br>"
+                  f"⚖️ We do our best to get it right, but we're human — if something's off, reply and let us know. Corrections make the digest stronger.</em></p> "
                   f"\n\nReturn ONLY the HTML. No markdown, no code fences."
               )
 
@@ -454,7 +455,9 @@ jobs:
               "@thezcashdaily</a><br>"
               "🛡️ Tip the digest (shielded): <code>"
               "u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2"
-              "</code></em></p>"
+              "</code><br>"
+              "⚖️ We do our best to get it right, but we're human — if something's off, "
+              "reply and let us know. Corrections make the digest stronger.</em></p>"
           )
           if "Never miss a digest" not in summary:
               summary = summary.rstrip() + "<br>\n\n" + CTA_HTML
