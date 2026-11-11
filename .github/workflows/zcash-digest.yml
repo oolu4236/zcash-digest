@@ -196,10 +196,11 @@ jobs:
                   f"\n\nHTML structure with <br> between paragraphs: "
                   f"<h3>🛡️ The Zcash Daily — {today}</h3><br> "
                   f"[paragraphs in <p> tags separated by <br>] "
-                  f"End with: <br><p><em>📣 Never miss a digest — click the 🔔 notification bell on the right to get alerted when a new one drops. "
-                  f"And follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a><br>"
-                  f"🛡️ Tip the digest (shielded): <code>u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2</code><br>"
-                  f"⚖️ We do our best to get it right, but we're human — if something's off, reply and let us know. Corrections make the digest stronger.</em></p> "
+                  f"End with: <br><p><em>⚖️ We put care into every digest and accuracy matters to us. If something doesn't look right, reply and flag it. Your corrections keep The Zcash Daily reliable.</em></p>"
+                  f"<p>🔔 Hit the notification bell so you never miss an update.</p>"
+                  f"<p>Follow us on X: <a href='https://x.com/thezcashdaily'>@thezcashdaily</a> #Zcash</p>"
+                  f"<p><strong>Tip the digest (shielded):</strong><br>"
+                  f"<code>u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2</code></p> "
                   f"\n\nReturn ONLY the HTML. No markdown, no code fences."
               )
 
@@ -449,17 +450,17 @@ jobs:
 
           # ── Ensure CTA is always present ─────────────────────────
           CTA_HTML = (
-              "<p><em>📣 Never miss a digest — click the 🔔 notification bell "
-              "on the right to get alerted when a new one drops. "
-              "And follow us on X: <a href='https://x.com/thezcashdaily'>"
-              "@thezcashdaily</a><br>"
-              "🛡️ Tip the digest (shielded): <code>"
-              "u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2"
-              "</code><br>"
-              "⚖️ We do our best to get it right, but we're human — if something's off, "
-              "reply and let us know. Corrections make the digest stronger.</em></p>"
+              "<p><em>⚖️ We put care into every digest and accuracy matters to us. "
+              "If something doesn't look right, reply and flag it. "
+              "Your corrections keep The Zcash Daily reliable.</em></p>"
+              "<p>🔔 Hit the notification bell so you never miss an update.</p>"
+              "<p>Follow us on X: <a href='https://x.com/thezcashdaily'>"
+              "@thezcashdaily</a> #Zcash</p>"
+              "<p><strong>Tip the digest (shielded):</strong><br>"
+              "<code>u1ugdhhhag775002dh5yx58mw6nlvr9k2zd2lqg8nvtudgxxmntwtavkp3ushc04t0ejynf0j6rt9h4xgcumwve4dkgkq6rlcju5vcq8g2"
+              "</code></p>"
           )
-          if "Never miss a digest" not in summary:
+          if "accuracy matters to us" not in summary:
               summary = summary.rstrip() + "<br>\n\n" + CTA_HTML
               print("CTA was missing — appended ✓")
           else:
