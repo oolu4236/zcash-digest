@@ -37,9 +37,19 @@ jobs:
           SKIP_TWEET: ${{ inputs.skip_tweet }}
         run: |
           python3 - << 'PYEOF'
+          import subprocess, sys
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "matplotlib", "Pillow"])
+
           import urllib.request, urllib.error, json, os, re, base64
           import hashlib, hmac, time, urllib.parse, secrets as sec
-          from datetime import datetime, timezone, date
+          from datetime import datetime, timezone, date, timedelta
+          import matplotlib
+          matplotlib.use("Agg")
+          import matplotlib.pyplot as plt
+          import matplotlib.dates as mdates
+          from io import BytesIO
+          from PIL import Image, ImageDraw, ImageFont
+          import textwrap
 
           # ── Config ─────────────────────────────────────────────
           ANTHROPIC_API_KEY     = os.environ["ANTHROPIC_API_KEY"]
@@ -57,10 +67,463 @@ jobs:
 
           today     = datetime.now(timezone.utc).strftime("%A, %B %-d, %Y")
           today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+          weekday_now = datetime.now(timezone.utc).strftime("%A")
+
+          # ── Visual trigger system ─────────────────────────────
+          CHART_COLORS = {
+              "gold": "#F4B728", "bg": "#0F0F0F", "surface": "#181818",
+              "text": "#E8E8E0", "muted": "#555550", "green": "#4ADE80", "red": "#F87171",
+          }
+          chart_url = None
+          chart_trigger = None
+          chart_description = ""
+          chart_data_summary = ""
+          chart_png_bytes = None
+
+          def fetch_coingecko(days=30):
+              """Fetch ZEC price and volume from CoinGecko (free, no key)."""
+              url = f"https://api.coingecko.com/api/v3/coins/zcash/market_chart?vs_currency=usd&days={days}"
+              req = urllib.request.Request(url, headers={"User-Agent": "ZcashDigestBot/1.0"})
+              with urllib.request.urlopen(req, timeout=15) as res:
+                  return json.loads(res.read())
+
+          def fetch_shielded_pool():
+              """Fetch shielded pool stats from Blockchair."""
+              url = "https://api.blockchair.com/zcash/stats"
+              req = urllib.request.Request(url, headers={"User-Agent": "ZcashDigestBot/1.0"})
+              with urllib.request.urlopen(req, timeout=15) as res:
+                  data = json.loads(res.read())
+                  return data.get("data", {})
+
+          def style_chart(fig, ax):
+              """Apply Zcash Daily dark theme to a chart."""
+              fig.patch.set_facecolor(CHART_COLORS["bg"])
+              ax.set_facecolor(CHART_COLORS["surface"])
+              ax.tick_params(colors=CHART_COLORS["text"], labelsize=8)
+              ax.spines["top"].set_visible(False)
+              ax.spines["right"].set_visible(False)
+              ax.spines["bottom"].set_color(CHART_COLORS["muted"])
+              ax.spines["left"].set_color(CHART_COLORS["muted"])
+              ax.xaxis.label.set_color(CHART_COLORS["text"])
+              ax.yaxis.label.set_color(CHART_COLORS["text"])
+              ax.title.set_color(CHART_COLORS["text"])
+              # Watermark
+              fig.text(0.95, 0.02, "The Zcash Daily", fontsize=7,
+                       color=CHART_COLORS["muted"], ha="right", alpha=0.6)
+
+          def chart_price_volume_7d(cg_data):
+              """7-day price + volume combo chart."""
+              prices = cg_data["prices"][-168:]  # ~7 days of hourly data
+              volumes = cg_data["total_volumes"][-168:]
+              dates = [datetime.fromtimestamp(p[0]/1000, tz=timezone.utc) for p in prices]
+              price_vals = [p[1] for p in prices]
+              vol_vals = [v[1] for v in volumes]
+
+              fig, ax1 = plt.subplots(figsize=(8, 4), dpi=100)
+              style_chart(fig, ax1)
+
+              # Volume bars (background)
+              ax2 = ax1.twinx()
+              ax2.bar(dates, vol_vals, width=0.03, color=CHART_COLORS["muted"], alpha=0.3, label="Volume")
+              ax2.set_ylabel("Volume (USD)", fontsize=8, color=CHART_COLORS["muted"])
+              ax2.tick_params(colors=CHART_COLORS["muted"], labelsize=7)
+              ax2.spines["right"].set_color(CHART_COLORS["muted"])
+              ax2.spines["top"].set_visible(False)
+
+              # Price line (foreground)
+              ax1.plot(dates, price_vals, color=CHART_COLORS["gold"], linewidth=2, zorder=5)
+              ax1.fill_between(dates, price_vals, alpha=0.1, color=CHART_COLORS["gold"], zorder=4)
+              ax1.set_ylabel("ZEC/USD", fontsize=9, color=CHART_COLORS["gold"])
+              ax1.set_title(f"ZEC 7-Day Price & Volume", fontsize=11, pad=10)
+              ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+              ax1.grid(axis="y", color=CHART_COLORS["muted"], alpha=0.2, linewidth=0.5)
+              # Auto-scale price axis with padding
+              price_min, price_max = min(price_vals), max(price_vals)
+              padding = (price_max - price_min) * 0.1 or 10
+              ax1.set_ylim(price_min - padding, price_max + padding)
+
+              fig.tight_layout()
+              buf = BytesIO()
+              fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+              plt.close(fig)
+              return buf.getvalue()
+
+          def chart_price_shielded_7d(cg_data, shielded_pct):
+              """7-day price + shielded pool % dual-axis chart."""
+              prices = cg_data["prices"][-168:]
+              dates = [datetime.fromtimestamp(p[0]/1000, tz=timezone.utc) for p in prices]
+              price_vals = [p[1] for p in prices]
+
+              fig, ax1 = plt.subplots(figsize=(8, 4), dpi=100)
+              style_chart(fig, ax1)
+
+              ax1.plot(dates, price_vals, color=CHART_COLORS["gold"], linewidth=2)
+              ax1.set_ylabel("ZEC/USD", fontsize=9, color=CHART_COLORS["gold"])
+              ax1.set_title("ZEC Price & Shielded Pool (7 days)", fontsize=11, pad=10)
+              ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+              ax1.grid(axis="y", color=CHART_COLORS["muted"], alpha=0.2, linewidth=0.5)
+
+              # Shielded pool % as horizontal reference line
+              ax2 = ax1.twinx()
+              ax2.axhline(y=shielded_pct, color=CHART_COLORS["green"], linewidth=1.5,
+                          linestyle="--", label=f"Shielded: {shielded_pct:.1f}%")
+              ax2.set_ylabel("Shielded Pool %", fontsize=9, color=CHART_COLORS["green"])
+              ax2.set_ylim(max(0, shielded_pct - 10), min(100, shielded_pct + 10))
+              ax2.tick_params(colors=CHART_COLORS["green"], labelsize=7)
+              ax2.spines["right"].set_color(CHART_COLORS["green"])
+              ax2.spines["top"].set_visible(False)
+              ax2.legend(loc="upper right", fontsize=8, facecolor=CHART_COLORS["surface"],
+                         edgecolor=CHART_COLORS["muted"], labelcolor=CHART_COLORS["text"])
+
+              fig.tight_layout()
+              buf = BytesIO()
+              fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+              plt.close(fig)
+              return buf.getvalue()
+
+          def chart_shielded_30d(cg_data, shielded_pct, milestone):
+              """30-day price with shielded milestone marker."""
+              prices = cg_data["prices"]
+              dates = [datetime.fromtimestamp(p[0]/1000, tz=timezone.utc) for p in prices]
+              price_vals = [p[1] for p in prices]
+
+              fig, ax1 = plt.subplots(figsize=(8, 4), dpi=100)
+              style_chart(fig, ax1)
+
+              ax1.plot(dates, price_vals, color=CHART_COLORS["gold"], linewidth=2)
+              ax1.set_ylabel("ZEC/USD", fontsize=9, color=CHART_COLORS["gold"])
+              ax1.set_title(f"ZEC 30-Day Price — Shielded Pool Hit {milestone}%", fontsize=11, pad=10)
+              ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+              ax1.grid(axis="y", color=CHART_COLORS["muted"], alpha=0.2, linewidth=0.5)
+
+              # Milestone annotation
+              ax1.annotate(f"🛡️ {milestone}% shielded", xy=(dates[-1], price_vals[-1]),
+                           fontsize=9, color=CHART_COLORS["green"],
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor=CHART_COLORS["surface"],
+                                     edgecolor=CHART_COLORS["green"], alpha=0.8))
+
+              fig.tight_layout()
+              buf = BytesIO()
+              fig.savefig(buf, format="png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+              plt.close(fig)
+              return buf.getvalue()
+
+          def commit_chart_to_ghpages(png_bytes, filename):
+              """Commit a chart PNG to gh-pages charts/ directory, return public URL."""
+              gh_api = "https://api.github.com"
+              path = f"charts/{filename}"
+              gh_headers = {
+                  "Authorization": f"Bearer {GITHUB_TOKEN}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "Content-Type": "application/json",
+              }
+              # Check if file exists (to get sha for update)
+              file_sha = None
+              try:
+                  req = urllib.request.Request(
+                      f"{gh_api}/repos/{REPO}/contents/{path}?ref={LOG_BRANCH}",
+                      headers=gh_headers,
+                  )
+                  with urllib.request.urlopen(req) as res:
+                      file_sha = json.loads(res.read()).get("sha")
+              except urllib.error.HTTPError:
+                  pass  # File doesn't exist yet
+
+              put_body = {
+                  "message": f"chart: {filename}",
+                  "content": base64.b64encode(png_bytes).decode(),
+                  "branch": LOG_BRANCH,
+              }
+              if file_sha:
+                  put_body["sha"] = file_sha
+
+              urllib.request.urlopen(urllib.request.Request(
+                  f"{gh_api}/repos/{REPO}/contents/{path}",
+                  data=json.dumps(put_body).encode(),
+                  headers=gh_headers,
+                  method="PUT",
+              ))
+              return f"https://oolu4236.github.io/zcash-digest/{path}"
+
+          # ── Content visual renderers (Pillow) ────────────────
+          def hex_to_rgb(h):
+              h = h.lstrip("#")
+              return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+          def get_font(size, bold=False):
+              paths = [
+                  "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold
+                  else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                  "/System/Library/Fonts/Helvetica.ttc",
+              ]
+              for p in paths:
+                  if os.path.exists(p):
+                      try:
+                          return ImageFont.truetype(p, size)
+                      except Exception:
+                          continue
+              return ImageFont.load_default()
+
+          def add_watermark(draw, w, h):
+              draw.text((w - 130, h - 22), "The Zcash Daily",
+                        fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(11))
+
+          def render_snapshot_card(date_str, metrics):
+              W, H = 800, 420
+              img = Image.new("RGB", (W, H), hex_to_rgb(CHART_COLORS["bg"]))
+              draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle((30, 20, W-30, H-20), 16,
+                  fill=hex_to_rgb(CHART_COLORS["surface"]), outline=hex_to_rgb("#2A2A2A"))
+              draw.text((60, 40), "The Zcash Daily",
+                  fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(22, True))
+              draw.text((60, 70), date_str,
+                  fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(16))
+              draw.line((60, 100, W-60, 100), fill=hex_to_rgb("#2A2A2A"), width=1)
+              y = 120
+              for m in metrics:
+                  draw.text((60, y+8), m.get("icon", ""),
+                      fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(18))
+                  draw.text((90, y+8), m["label"],
+                      fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(14))
+                  draw.text((250, y), m["value"],
+                      fill=hex_to_rgb(CHART_COLORS["text"]), font=get_font(28, True))
+                  if "change" in m:
+                      c = CHART_COLORS["green"] if m.get("change_dir") == "up" else CHART_COLORS["red"]
+                      arrow = "+" if m.get("change_dir") == "up" else "-"
+                      draw.text((500, y+8), f"{arrow}{m['change']}",
+                          fill=hex_to_rgb(c), font=get_font(14))
+                  y += 60
+              add_watermark(draw, W, H)
+              draw.text((60, H-50), "@thezcashdaily",
+                  fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(12))
+              buf = BytesIO()
+              img.save(buf, format="PNG")
+              return buf.getvalue()
+
+          def render_quote_card(quote_text, author, source="Zcash Forum"):
+              W, H = 800, 500
+              img = Image.new("RGB", (W, H), hex_to_rgb(CHART_COLORS["bg"]))
+              draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle((30, 20, W-30, H-20), 16,
+                  fill=hex_to_rgb(CHART_COLORS["surface"]), outline=hex_to_rgb("#2A2A2A"))
+              draw.rectangle((30, 20, 38, H-20), fill=hex_to_rgb(CHART_COLORS["gold"]))
+              draw.text((60, 40), "\u201C",
+                  fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(72, True))
+              wrapped = textwrap.fill(quote_text, width=38)
+              y = 110
+              for line in wrapped.split("\n")[:6]:
+                  draw.text((80, y), line,
+                      fill=hex_to_rgb(CHART_COLORS["text"]), font=get_font(22))
+                  y += 34
+              y += 20
+              draw.text((80, y), f"-- @{author}",
+                  fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(16, True))
+              draw.text((80, y+26), source,
+                  fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(13))
+              add_watermark(draw, W, H)
+              buf = BytesIO()
+              img.save(buf, format="PNG")
+              return buf.getvalue()
+
+          def render_governance_flow(title, steps, key_numbers=None):
+              W, H = 800, 450
+              img = Image.new("RGB", (W, H), hex_to_rgb(CHART_COLORS["bg"]))
+              draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle((30, 20, W-30, H-20), 16,
+                  fill=hex_to_rgb(CHART_COLORS["surface"]), outline=hex_to_rgb("#2A2A2A"))
+              draw.text((60, 40), title,
+                  fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(20, True))
+              n = len(steps)
+              step_w = min(140, (W - 120) // max(n, 1) - 20)
+              total_w = n * (step_w + 20) - 20
+              start_x = (W - total_w) // 2
+              y = 100
+              sf = get_font(14, True)
+              for i, step in enumerate(steps):
+                  x = start_x + i * (step_w + 20)
+                  draw.rounded_rectangle((x, y, x+step_w, y+50), 8,
+                      fill=hex_to_rgb("#1E1E1E"), outline=hex_to_rgb(CHART_COLORS["gold"]))
+                  tw = draw.textlength(step, font=sf)
+                  draw.text((x + (step_w - tw)/2, y+16), step,
+                      fill=hex_to_rgb(CHART_COLORS["text"]), font=sf)
+                  if i < n - 1:
+                      ax = x + step_w + 4
+                      ay = y + 25
+                      draw.line((ax, ay, ax+12, ay), fill=hex_to_rgb(CHART_COLORS["gold"]), width=2)
+                      draw.polygon([(ax+12, ay-4), (ax+18, ay), (ax+12, ay+4)],
+                          fill=hex_to_rgb(CHART_COLORS["gold"]))
+              if key_numbers:
+                  ky = 190
+                  draw.line((60, ky, W-60, ky), fill=hex_to_rgb("#2A2A2A"), width=1)
+                  ky += 20
+                  items = list(key_numbers.items())
+                  col_w = (W - 120) // max(len(items), 1)
+                  for i, (label, value) in enumerate(items):
+                      kx = 60 + i * col_w
+                      draw.text((kx, ky), label,
+                          fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(13))
+                      draw.text((kx, ky+22), str(value),
+                          fill=hex_to_rgb(CHART_COLORS["text"]), font=get_font(24, True))
+              add_watermark(draw, W, H)
+              buf = BytesIO()
+              img.save(buf, format="PNG")
+              return buf.getvalue()
+
+          def render_timeline_strip(title, events):
+              W, H = 800, 350
+              img = Image.new("RGB", (W, H), hex_to_rgb(CHART_COLORS["bg"]))
+              draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle((30, 20, W-30, H-20), 16,
+                  fill=hex_to_rgb(CHART_COLORS["surface"]), outline=hex_to_rgb("#2A2A2A"))
+              draw.text((60, 40), title,
+                  fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(20, True))
+              n = max(len(events), 2)
+              mx = 80
+              ly = 140
+              le = W - mx
+              draw.line((mx, ly, le, ly), fill=hex_to_rgb(CHART_COLORS["gold"]), width=2)
+              draw.polygon([(le, ly-6), (le+10, ly), (le, ly+6)],
+                  fill=hex_to_rgb(CHART_COLORS["gold"]))
+              spacing = (le - mx) / max(n - 1, 1)
+              for i, ev in enumerate(events):
+                  x = int(mx + i * spacing)
+                  draw.ellipse((x-6, ly-6, x+6, ly+6), fill=hex_to_rgb(CHART_COLORS["gold"]))
+                  draw.text((x-20, ly-30), ev["date"],
+                      fill=hex_to_rgb(CHART_COLORS["text"]), font=get_font(12, True))
+                  label = ev["label"][:16]
+                  draw.text((x-25, ly+16), label,
+                      fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(11))
+              add_watermark(draw, W, H)
+              buf = BytesIO()
+              img.save(buf, format="PNG")
+              return buf.getvalue()
+
+          def render_comparison_card(title, a, b):
+              W, H = 800, 450
+              img = Image.new("RGB", (W, H), hex_to_rgb(CHART_COLORS["bg"]))
+              draw = ImageDraw.Draw(img)
+              draw.rounded_rectangle((30, 20, W-30, H-20), 16,
+                  fill=hex_to_rgb(CHART_COLORS["surface"]), outline=hex_to_rgb("#2A2A2A"))
+              draw.text((60, 40), title,
+                  fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(20, True))
+              draw.text((W//2-10, 85), "vs",
+                  fill=hex_to_rgb(CHART_COLORS["muted"]), font=get_font(16, True))
+              col_w, col_h = 310, 280
+              for data, cx in [(a, 60), (b, W-60-col_w)]:
+                  cy = 110
+                  draw.rounded_rectangle((cx, cy, cx+col_w, cy+col_h), 10,
+                      fill=hex_to_rgb("#1E1E1E"), outline=hex_to_rgb("#2A2A2A"))
+                  draw.text((cx+20, cy+15), data["name"],
+                      fill=hex_to_rgb(CHART_COLORS["gold"]), font=get_font(16, True))
+                  draw.line((cx+20, cy+45, cx+col_w-20, cy+45),
+                      fill=hex_to_rgb("#2A2A2A"), width=1)
+                  py = cy + 60
+                  for pt in data.get("points", [])[:5]:
+                      for line in textwrap.fill(pt, width=30).split("\n"):
+                          draw.text((cx+25, py), f"  {line}",
+                              fill=hex_to_rgb(CHART_COLORS["text"]), font=get_font(13))
+                          py += 20
+                      py += 8
+              add_watermark(draw, W, H)
+              buf = BytesIO()
+              img.save(buf, format="PNG")
+              return buf.getvalue()
+
+          # ── Evaluate chart triggers ──────────────────────────
+          custom = os.environ.get("CUSTOM_CONTENT", "").strip()
+          if not custom:
+              try:
+                  print("Fetching chart data...")
+                  cg_data = fetch_coingecko(30)
+                  prices_7d = cg_data["prices"][-168:]  # last 7 days
+
+                  # Calculate 24h price change
+                  if len(prices_7d) >= 24:
+                      price_now = prices_7d[-1][1]
+                      price_24h_ago = prices_7d[-24][1]
+                      pct_change_24h = ((price_now - price_24h_ago) / price_24h_ago) * 100
+                  else:
+                      pct_change_24h = 0
+
+                  # Fetch shielded pool data
+                  shielded_pct = None
+                  try:
+                      bc_stats = fetch_shielded_pool()
+                      # Blockchair returns absolute values; calculate percentage
+                      shielded_val = bc_stats.get("blockchain_size", 0)  # fallback
+                      # Try to get shielded percentage from available fields
+                      if "cg_shielded_pool_percentage" in bc_stats:
+                          shielded_pct = float(bc_stats["cg_shielded_pool_percentage"])
+                      print(f"  Shielded pool: {shielded_pct}%" if shielded_pct else "  Shielded pool data unavailable")
+                  except Exception as sp_err:
+                      print(f"  Shielded pool fetch failed: {sp_err}")
+
+                  print(f"  ZEC price: ${prices_7d[-1][1]:.2f}, 24h change: {pct_change_24h:+.1f}%")
+
+                  # Trigger priority evaluation
+                  if weekday_now == "Tuesday":
+                      chart_trigger = "TUESDAY_ALWAYS"
+                      chart_description = "7-day ZEC price and volume chart"
+                      chart_data_summary = f"ZEC at ${price_now:.0f}, 24h change {pct_change_24h:+.1f}%"
+                      chart_png_bytes = chart_price_volume_7d(cg_data)
+                      print(f"  Chart trigger: TUESDAY_ALWAYS")
+
+                  elif abs(pct_change_24h) >= 5:
+                      chart_trigger = "PRICE_MOVE_5PCT"
+                      chart_description = f"7-day ZEC price chart showing {pct_change_24h:+.1f}% move"
+                      chart_data_summary = f"ZEC moved {pct_change_24h:+.1f}% in 24h to ${price_now:.0f}"
+                      chart_png_bytes = chart_price_volume_7d(cg_data)
+                      print(f"  Chart trigger: PRICE_MOVE_5PCT ({pct_change_24h:+.1f}%)")
+
+                  elif weekday_now == "Monday" and shielded_pct is not None:
+                      chart_trigger = "MONDAY_WEEKLY_TREND"
+                      chart_description = "7-day ZEC price and shielded pool chart"
+                      chart_data_summary = f"ZEC at ${price_now:.0f}, shielded pool at {shielded_pct:.1f}%"
+                      chart_png_bytes = chart_price_shielded_7d(cg_data, shielded_pct)
+                      print(f"  Chart trigger: MONDAY_WEEKLY_TREND")
+
+                  elif weekday_now == "Monday":
+                      # Monday without shielded data — fall back to price+volume
+                      chart_trigger = "MONDAY_WEEKLY_TREND"
+                      chart_description = "7-day ZEC price and volume chart"
+                      chart_data_summary = f"ZEC at ${price_now:.0f}, 24h change {pct_change_24h:+.1f}%"
+                      chart_png_bytes = chart_price_volume_7d(cg_data)
+                      print(f"  Chart trigger: MONDAY_WEEKLY_TREND (no shielded data)")
+
+                  elif shielded_pct is not None:
+                      # Check for milestone crossing (round 5% increments)
+                      milestone = int(shielded_pct // 5) * 5
+                      if shielded_pct >= milestone and (shielded_pct - milestone) < 1.0:
+                          chart_trigger = "SHIELDED_MILESTONE"
+                          chart_description = f"30-day price chart marking {milestone}% shielded pool milestone"
+                          chart_data_summary = f"Shielded pool at {shielded_pct:.1f}%, near {milestone}% milestone"
+                          chart_png_bytes = chart_shielded_30d(cg_data, shielded_pct, milestone)
+                          print(f"  Chart trigger: SHIELDED_MILESTONE ({milestone}%)")
+
+                  elif weekday_now == "Friday":
+                      chart_trigger = "FRIDAY_ZK_CONTEXT"
+                      chart_description = "30-day ZEC price overview"
+                      chart_data_summary = f"ZEC at ${price_now:.0f}, 30-day trend"
+                      chart_png_bytes = chart_price_volume_7d(cg_data)
+                      print(f"  Chart trigger: FRIDAY_ZK_CONTEXT")
+
+                  if not chart_trigger:
+                      print("  No chart trigger fired — digest will have no visual")
+
+                  # Commit chart if generated
+                  if chart_png_bytes:
+                      chart_filename = f"{today_iso}-{chart_trigger.lower()}.png"
+                      chart_url = commit_chart_to_ghpages(chart_png_bytes, chart_filename)
+                      print(f"  Chart committed: {chart_url}")
+
+              except Exception as chart_err:
+                  print(f"Chart system error (non-fatal): {chart_err}")
+                  chart_url = None
+                  chart_trigger = None
 
           # ── Generate or use custom digest ──────────────────────
           tools = [{"type": "web_search_20250305", "name": "web_search"}]
-          custom = os.environ.get("CUSTOM_CONTENT", "").strip()
           if custom:
               summary = custom
               print("Using custom content.")
@@ -204,6 +667,28 @@ jobs:
                   f"\n\nReturn ONLY the HTML. No markdown, no code fences."
               )
 
+              # Inject visual instructions based on Phase 1 result
+              if chart_url:
+                  # Phase 1 chart exists — tell Claude to reference it
+                  prompt += (
+                      f"\n\nCHART AVAILABLE: A {chart_description} has been generated and will be "
+                      f"embedded in today's digest automatically. Reference the chart naturally in your text — "
+                      f"e.g., 'as the 7-day chart shows' or 'the trend line tells the story'. "
+                      f"Do NOT include an <img> tag yourself; it will be inserted automatically after your last content paragraph. "
+                      f"The chart covers: {chart_data_summary}."
+                  )
+              else:
+                  # No Phase 1 chart — ask Claude for visual_data so Phase 2 can generate a content visual
+                  prompt += (
+                      f"\n\nVISUAL DATA — After your HTML digest, on a NEW line, output a JSON block for generating a visual: "
+                      f"<visual_data>{{\"type\": \"quote\"|\"governance\"|\"timeline\"|\"comparison\"|\"snapshot\", \"data\": {{...}}}}</visual_data> "
+                      f"For \"quote\": {{\"quote\": \"the text\", \"author\": \"username\", \"source\": \"Forum|X|GitHub\"}} "
+                      f"For \"governance\": {{\"title\": \"title\", \"steps\": [\"Step1\", \"Step2\"], \"key_numbers\": {{\"label\": \"value\"}}}} "
+                      f"For \"timeline\": {{\"title\": \"name\", \"events\": [{{\"date\": \"Oct 1\", \"label\": \"ZIP draft\"}}, ...]}} "
+                      f"For \"comparison\": {{\"title\": \"what\", \"a\": {{\"name\": \"...\", \"points\": [\"...\"]}}, \"b\": {{\"name\": \"...\", \"points\": [\"...\"]}}}} "
+                      f"For \"snapshot\": {{}} (default fallback). Pick the type that best matches your strongest paragraph."
+                  )
+
               messages = [{"role": "user", "content": prompt}]
               tools = [{"type": "web_search_20250305", "name": "web_search"}]
               summary = ""
@@ -254,7 +739,12 @@ jobs:
               """Check link count and paragraph length requirements."""
               issues = []
               paras = re.findall(r'<p>(.*?)</p>', html, re.DOTALL)
-              content_paras = [p for p in paras if 'Never miss a digest' not in p]
+              content_paras = [p for p in paras
+                               if 'Never miss a digest' not in p
+                               and '<img' not in p
+                               and 'accuracy matters' not in p
+                               and 'Tip the digest' not in p
+                               and 'notification bell' not in p]
               for i, p in enumerate(content_paras):
                   link_count = len(re.findall(r'<a\s+href', p))
                   clean = re.sub(r'<[^>]+>', '', p)
@@ -407,6 +897,9 @@ jobs:
           for url in urls:
               if url.startswith("mailto:") or url.startswith("#"):
                   continue
+              if "oolu4236.github.io/zcash-digest/charts/" in url:
+                  print(f"  ✓ {url} (chart — skipped verification)")
+                  continue
               try:
                   check_req = urllib.request.Request(url, method="HEAD")
                   check_req.add_header("User-Agent", "Mozilla/5.0 (compatible; ZcashDigestBot/1.0)")
@@ -448,6 +941,98 @@ jobs:
           else:
               print(f"All {len(urls)} links verified ✓")
 
+          # ── Phase 2: Content visuals (post-generation) ────────
+          # Extract <visual_data> from summary and strip it
+          visual_data = None
+          vd_match = re.search(r'<visual_data>(.*?)</visual_data>', summary, re.DOTALL)
+          if vd_match:
+              try:
+                  visual_data = json.loads(vd_match.group(1).strip())
+                  print(f"Visual data extracted: type={visual_data.get('type', '?')}")
+              except json.JSONDecodeError as vd_err:
+                  print(f"Visual data parse error: {vd_err}")
+              # Strip visual_data tag from summary (it's not for readers)
+              summary = summary[:vd_match.start()].rstrip() + summary[vd_match.end():]
+
+          # Generate content visual if Phase 1 didn't produce a chart
+          if not chart_url and not custom:
+              try:
+                  vtype = visual_data.get("type", "snapshot") if visual_data else "snapshot"
+                  vdata = visual_data.get("data", {}) if visual_data else {}
+                  content_png = None
+                  content_trigger = None
+
+                  if vtype == "quote" and vdata.get("quote") and vdata.get("author"):
+                      content_png = render_quote_card(
+                          vdata["quote"], vdata["author"], vdata.get("source", "Zcash Forum"))
+                      content_trigger = "QUOTE_CARD"
+                      chart_description = f"Quote from @{vdata['author']}"
+                      print(f"  Content visual: QUOTE_CARD")
+
+                  elif vtype == "governance" and vdata.get("steps"):
+                      content_png = render_governance_flow(
+                          vdata.get("title", "Governance Flow"),
+                          vdata["steps"], vdata.get("key_numbers"))
+                      content_trigger = "GOVERNANCE_FLOW"
+                      chart_description = vdata.get("title", "Governance flow")
+                      print(f"  Content visual: GOVERNANCE_FLOW")
+
+                  elif vtype == "timeline" and vdata.get("events"):
+                      content_png = render_timeline_strip(
+                          vdata.get("title", "Timeline"), vdata["events"])
+                      content_trigger = "TIMELINE_STRIP"
+                      chart_description = vdata.get("title", "Timeline")
+                      print(f"  Content visual: TIMELINE_STRIP")
+
+                  elif vtype == "comparison" and vdata.get("a") and vdata.get("b"):
+                      content_png = render_comparison_card(
+                          vdata.get("title", "Comparison"), vdata["a"], vdata["b"])
+                      content_trigger = "COMPARISON_CARD"
+                      chart_description = vdata.get("title", "Comparison")
+                      print(f"  Content visual: COMPARISON_CARD")
+
+                  else:
+                      # Fallback: snapshot card with CoinGecko data
+                      try:
+                          cg_price = fetch_coingecko(1)
+                          p = cg_price["prices"][-1][1]
+                          p24 = cg_price["prices"][0][1]
+                          pct = ((p - p24) / p24) * 100
+                          snap_metrics = [
+                              {"icon": "Z", "label": "ZEC", "value": f"${p:,.0f}",
+                               "change": f"{abs(pct):.1f}%", "change_dir": "up" if pct >= 0 else "down"},
+                          ]
+                          content_png = render_snapshot_card(today, snap_metrics)
+                          content_trigger = "SNAPSHOT_CARD"
+                          chart_description = "Daily snapshot"
+                          print(f"  Content visual: SNAPSHOT_CARD (fallback)")
+                      except Exception as snap_err:
+                          print(f"  Snapshot card failed: {snap_err}")
+
+                  if content_png:
+                      fname = f"{today_iso}-{content_trigger.lower()}.png"
+                      chart_url = commit_chart_to_ghpages(content_png, fname)
+                      chart_trigger = content_trigger
+                      print(f"  Content visual committed: {chart_url}")
+
+              except Exception as cv_err:
+                  print(f"Content visual error (non-fatal): {cv_err}")
+
+          # ── Insert chart image if generated ─────────────────────
+          if chart_url:
+              chart_alt = chart_description or "Zcash Daily chart"
+              img_tag = f'<p><img src="{chart_url}" alt="{chart_alt}" style="max-width:100%;border-radius:8px;"></p><br>'
+              # Insert before CTA if present, otherwise append
+              if "accuracy matters to us" in summary:
+                  summary = summary.replace(
+                      '<p><em>\u2696\ufe0f We put care',
+                      f'{img_tag}<p><em>\u2696\ufe0f We put care'
+                  )
+                  print(f"Chart image inserted before CTA ✓")
+              else:
+                  summary = summary.rstrip() + "<br>\n" + img_tag
+                  print(f"Chart image appended ✓")
+
           # ── Ensure CTA is always present ─────────────────────────
           CTA_HTML = (
               "<p><em>⚖️ We put care into every digest and accuracy matters to us. "
@@ -477,6 +1062,19 @@ jobs:
               # Extract paragraphs
               paragraphs = re.findall(r'<p>(.*?)</p>', html, re.DOTALL)
               for p in paragraphs:
+                  # Handle image paragraphs → Notion image block
+                  img_match = re.search(r'<img\s+src=["\']([^"\']+)["\']', p)
+                  if img_match:
+                      blocks.append({
+                          "object": "block",
+                          "type": "image",
+                          "image": {
+                              "type": "external",
+                              "external": {"url": img_match.group(1)},
+                          },
+                      })
+                      continue
+
                   # Convert <a href="...">text</a> to Notion rich text with links
                   rich_text = []
                   pos = 0
@@ -660,13 +1258,17 @@ jobs:
           # Before appending, remove same-day duplicates
           log_entries = [e for e in log_entries if e.get("date") != today_iso]
 
-          log_entries.append({
+          log_entry = {
               "date": today_iso,
               "title": card_title,
               "content": summary,
               "notion_page_id": notion_page_id,
               "tweet_id": tweet_id,
-          })
+          }
+          if chart_url:
+              log_entry["chart_url"] = chart_url
+              log_entry["chart_trigger"] = chart_trigger
+          log_entries.append(log_entry)
 
           put_body = {
               "message": f"digest: {today_iso}",
