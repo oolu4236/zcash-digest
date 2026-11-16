@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Install Python dependencies
+        run: pip install -q matplotlib Pillow
+
       - name: Fetch Zcash forum and summarize and post to Notion
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -37,9 +40,6 @@ jobs:
           SKIP_TWEET: ${{ inputs.skip_tweet }}
         run: |
           python3 - << 'PYEOF'
-          import subprocess, sys
-          subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "matplotlib", "Pillow"])
-
           import urllib.request, urllib.error, json, os, re, base64
           import hashlib, hmac, time, urllib.parse, secrets as sec
           from datetime import datetime, timezone, date, timedelta
