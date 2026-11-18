@@ -585,10 +585,24 @@ jobs:
                   )
               elif weekday == "Friday":
                   day_theme = (
-                      "THEME: The week's undercurrent. Dedicate ONE paragraph to something nobody is talking about "
-                      "but should be — a pattern, a tension, a question the community is avoiding. "
-                      "But FIRST cover what happened in the last 24 hours in the other paragraphs. "
-                      "The undercurrent is the closer, not the opener."
+                      "THEME: Friday editorial — 'My Take'. This is the week-closing edition. "
+                      "Cover the last 24 hours in paragraphs 1-2 as normal. "
+                      "Then close with a DEDICATED 'My Take' section — a bold italic header "
+                      "<p><strong><em>🔍 My Take</em></strong></p> followed by 1-2 paragraphs. "
+                      "This section is the editorial voice of The Zcash Daily — honest, direct, uncomfortable if necessary. "
+                      "\n\nMY TAKE THINKING FRAMEWORK (use these as internal prompts, not headings): "
+                      "• Challenge every assumption the ecosystem made this week. What did everyone accept without questioning? "
+                      "• Point out where ecosystem reasoning was weak — governance logic, technical claims, market narratives. "
+                      "• Name what the ecosystem is AVOIDING thinking about. What's the elephant in the room? "
+                      "• What bias is influencing community thinking? What are they overweighting? What are they ignoring? "
+                      "• Name the ecosystem's shadow — the thing it won't say out loud about itself. "
+                      "• Suggest a mental model, framework, or lens that would help the community think through the week's biggest challenge better. "
+                      "• Look at HOW the ecosystem thinks, not just WHAT it thinks. Where does it consistently get stuck? "
+                      "\n\nTONE for My Take: First person. Assertive but not arrogant. You can say 'I think this is wrong' or "
+                      "'nobody's asking this but they should be'. Reference specific events from the week. "
+                      "This is not a summary — it's a position. Take one. "
+                      "The My Take section can be up to 600 characters — give it room to breathe. "
+                      "Friday gets 4 paragraphs total: 2 news + 2 My Take (or 2 news + 1 longer My Take)."
                   )
               else:
                   day_theme = (
@@ -652,9 +666,10 @@ jobs:
                   f"Each paragraph focuses on one thread or theme, with sources hyperlinked inline. "
                   f"Use emoticons sparingly where they add warmth (🛡️ 🗳️ 📣). "
                   f"Keep it tight — 3 paragraphs max, 4 only if the day genuinely warrants it. "
-                  f"STRICT: Each paragraph must be 3-4 sentences and under 400 characters. "
+                  f"EXCEPTION: Fridays get 4 paragraphs (2 news + My Take section) and up to 1800 characters total. "
+                  f"STRICT: Each paragraph must be 3-4 sentences and under 400 characters (My Take paragraphs can be up to 600 characters). "
                   f"If you cannot say it in 4 sentences, you are covering too much — pick fewer topics and say less about each. "
-                  f"The entire digest (excluding CTA) must be under 1200 characters total. Scannable in 60 seconds. No filler, no hedging, no preamble. "
+                  f"The entire digest (excluding CTA) must be under 1200 characters total (1800 on Fridays). Scannable in 60 seconds. No filler, no hedging, no preamble. "
                   f"Do NOT start with 'Based on search results' or any meta-commentary. Jump straight into the HTML. "
                   f"\n\nHTML structure with <br> between paragraphs: "
                   f"<h3>🛡️ The Zcash Daily — {today}</h3><br> "
@@ -744,7 +759,9 @@ jobs:
                                and '<img' not in p
                                and 'accuracy matters' not in p
                                and 'Tip the digest' not in p
-                               and 'notification bell' not in p]
+                               and 'notification bell' not in p
+                               and 'My Take' not in p
+                               and '@thezcashdaily' not in p]
               for i, p in enumerate(content_paras):
                   link_count = len(re.findall(r'<a\s+href', p))
                   clean = re.sub(r'<[^>]+>', '', p)
