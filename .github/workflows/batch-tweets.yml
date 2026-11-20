@@ -119,6 +119,18 @@ jobs:
                   "ZEC +7% to $1,286. NU7 activates tomorrow \u2014 block 3,543,405. Zebra 7.0.0 minimum. ~24 hours to upgrade.\n\n"
                   "arya2 filed 2 ZIPs + 4 Zebra PRs in 48 hrs. ZIP 68 wants programmable timelocks \u2014 Lightning on Zcash. #Zcash"
               ),
+              "2026-11-18": (
+                  "ZEC $922, down 4.5% on the week. ZCSH shed ~$52.8M across 13 net-negative ETF sessions in Nov.\n\n"
+                  "QEDIT's ZSA upstream PR is the most consequential open PR in the ecosystem. Zebra integration still outstanding. #Zcash"
+              ),
+              "2026-11-19": (
+                  "Zebra 7.2.0-beta.1 drops. Block pruning cuts node DB from 282 GB to 15 GB \u2014 95% reduction.\n\n"
+                  "Bitwise S-1 for a spot ZEC ETF on the Texas Stock Exchange goes public. Direct ZEC redemptions, unlike Grayscale. #Zcash"
+              ),
+              "2026-11-20": (
+                  "Blood day. $14M liquidated, 93% longs. Hayes exits his ZEC trade: 'all Four Horsemen beheaded.'\n\n"
+                  "Six governance reform proposals in one week. The system is under stress. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
