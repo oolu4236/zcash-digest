@@ -1092,6 +1092,23 @@ jobs:
                       })
                       continue
 
+                  # Handle tip address → Notion callout block
+                  if 'Tip the digest' in p or 'Support the digest' in p:
+                      code_match = re.search(r'<code>(.*?)</code>', p, re.DOTALL)
+                      addr = code_match.group(1).strip() if code_match else ''
+                      blocks.append({
+                          "object": "block",
+                          "type": "callout",
+                          "callout": {
+                              "icon": {"type": "emoji", "emoji": "🛡️"},
+                              "rich_text": [
+                                  {"type": "text", "text": {"content": "Tip the digest (shielded):\n"}, "annotations": {"bold": True}},
+                                  {"type": "text", "text": {"content": addr}, "annotations": {"code": True}},
+                              ],
+                          },
+                      })
+                      continue
+
                   # Convert <a href="...">text</a> to Notion rich text with links
                   rich_text = []
                   pos = 0
