@@ -131,6 +131,10 @@ jobs:
                   "Blood day. $14M liquidated, 93% longs. Hayes exits his ZEC trade: 'all Four Horsemen beheaded.'\n\n"
                   "Six governance reform proposals in one week. The system is under stress. #Zcash"
               ),
+              "2026-11-24": (
+                  "ZEC -13.8% to $741. No Zcash-specific trigger — broader selloff. 39% down in November, ZCSH bleeds $61M third straight week.\n\n"
+                  "Five proposals live for ZCG's 8% block reward. Polls close Nov 30. window.zcash ZIP proposal lands. #Zcash"
+              ),
           }
 
           # OAuth 1.0a signature
